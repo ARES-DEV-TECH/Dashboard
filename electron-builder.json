@@ -1,0 +1,51 @@
+{
+  "appId": "com.ares.dashboard",
+  "productName": "ARES Dashboard",
+  "copyright": "Copyright © 2025 ARES Dashboard",
+  "directories": {
+    "output": "dist-electron"
+  },
+  "files": [
+    ".next/**/*",
+    "electron/**/*",
+    "node_modules/**/*",
+    "package.json",
+    "public/**/*"
+  ],
+  "mac": {
+    "category": "public.app-category.business",
+    "target": [
+      {
+        "target": "dmg",
+        "arch": ["x64", "arm64"]
+      },
+      {
+        "target": "zip",
+        "arch": ["x64", "arm64"]
+      }
+    ],
+    "hardenedRuntime": true,
+    "gatekeeperAssess": false,
+    "notarize": false
+  },
+  "dmg": {
+    "title": "ARES Dashboard",
+    "contents": [
+      {
+        "x": 130,
+        "y": 220
+      },
+      {
+        "x": 410,
+        "y": 220,
+        "type": "link",
+        "path": "/Applications"
+      }
+    ]
+  },
+  "publish": {
+    "provider": "github",
+    "owner": "YOUR_GITHUB_USERNAME",
+    "repo": "ares-dashboard"
+  }
+}

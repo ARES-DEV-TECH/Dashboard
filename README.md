@@ -1,36 +1,278 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# ARES Dashboard - Pilotage d'entreprise
 
-## Getting Started
+Application web de pilotage d'entreprise pour ARES, remplaçant le fichier Excel V4 "no codes". L'application couvre la gestion complète des clients, services, ventes, charges professionnelles, performances par service, et fournit des vues graphiques et agrégations.
 
-First, run the development server:
+## 🚀 Fonctionnalités
 
+### 📊 Dashboard
+- **KPIs en temps réel** : CA HT, CA TTC, Charges HT, Résultat Net, Net Après URSSAF, Marge moyenne
+- **Graphiques dynamiques** : Évolution du CA par mois, Répartition par service
+- **Top Services** : Classement des services par CA avec marges
+- **Filtrage par année** avec sélecteur intuitif
+
+### 👥 Gestion des Clients
+- CRUD complet (Créer, Lire, Modifier, Supprimer)
+- Recherche et tri
+- Export/Import CSV
+- Validation des données
+
+### 📦 Gestion des Articles
+- Services et produits avec prix HT, TVA, unité
+- Duplication d'articles
+- Export/Import CSV
+- Types : Service ou Produit
+
+### 💰 Gestion des Ventes
+- Création avec calculs automatiques (CA HT, TVA, TTC)
+- Génération automatique des numéros de facture
+- Sélection client/service avec autocomplétion
+- Export/Import CSV avec mapping des colonnes
+
+### 💳 Gestion des Charges
+- Charges professionnelles avec catégorisation
+- Liaison optionnelle aux services
+- Types : Fixe ou Variable
+- Export/Import CSV
+
+### 📈 Performances
+- Analyse par service avec KPIs détaillés
+- Graphiques de répartition et marges
+- Filtrage par année
+
+### ⚙️ Paramètres
+- Configuration des taux (URSSAF, TVA)
+- Gestion des backups
+- Export JSON global et SQL DDL
+
+## 🛠️ Stack Technique
+
+- **Framework** : Next.js 14 (App Router) + TypeScript
+- **UI** : TailwindCSS + shadcn/ui + lucide-react
+- **Graphiques** : Recharts
+- **Base de données** : SQLite (dev) + Prisma ORM
+- **Validation** : Zod
+- **Import/Export** : PapaParse (CSV)
+- **Tests** : Vitest + Playwright
+
+## 📦 Installation
+
+### Prérequis
+- Node.js 18+ 
+- npm ou yarn
+
+### Installation
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+# Cloner le projet
+git clone <repository-url>
+cd ares-dashboard
+
+# Installer les dépendances
+npm install
+
+# Configurer la base de données
+cp .env.example .env
+
+# Générer le client Prisma
+npx prisma generate
+
+# Créer et peupler la base de données
+npx prisma db push
+npm run db:seed
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## 🚀 Commandes
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Développement
+```bash
+# Démarrer le serveur de développement
+npm run dev
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+# Ouvrir Prisma Studio
+npm run db:studio
 
-## Learn More
+# Synchroniser le schéma de base de données
+npm run db:push
+```
 
-To learn more about Next.js, take a look at the following resources:
+### Production
+```bash
+# Construire l'application
+npm run build
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+# Démarrer en production
+npm run start
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### Tests
+```bash
+# Tests unitaires
+npm run test
 
-## Deploy on Vercel
+# Tests E2E
+npm run test:e2e
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+# Tests avec couverture
+npm run test:coverage
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+### Base de données
+```bash
+# Réinitialiser la base (schéma + seed)
+npm run db:reset
+
+# Créer les paramètres entreprise par défaut
+npm run db:seed
+
+# Ouvrir Prisma Studio
+npx prisma studio
+```
+
+## 📁 Structure du Projet
+
+```
+ares-dashboard/
+├── src/
+│   ├── app/                    # App Router (Next.js 14)
+│   │   ├── dashboard/          # Page dashboard
+│   │   ├── clients/            # Gestion des clients
+│   │   ├── articles/           # Gestion des articles
+│   │   ├── sales/              # Gestion des ventes
+│   │   ├── charges/            # Gestion des charges
+│   │   ├── performances/       # Analyse des performances
+│   │   ├── settings/           # Paramètres
+│   │   └── api/                # API Routes
+│   ├── components/             # Composants React
+│   │   ├── ui/                 # Composants UI (shadcn/ui)
+│   │   └── navigation.tsx      # Navigation principale
+│   └── lib/                    # Utilitaires
+│       ├── db.ts               # Client Prisma
+│       ├── validations.ts      # Schémas Zod
+│       ├── math.ts             # Calculs métier
+│       └── csv.ts              # Import/Export CSV
+├── prisma/
+│   ├── schema.prisma           # Schéma de base de données
+│   └── seed-realistic.ts       # Paramètres entreprise par défaut (npm run db:seed)
+├── tests/                      # Tests
+│   ├── unit/                   # Tests unitaires
+│   └── e2e/                    # Tests E2E
+└── public/                     # Assets statiques
+```
+
+## 🗄️ Modèle de Données
+
+### Tables Principales
+- **Client** : Informations clients (nom, email, téléphone, adresse)
+- **Article** : Services/produits (nom, prix HT, TVA, unité, type)
+- **Sale** : Ventes (facture, date, client, service, quantité, prix, calculs)
+- **Charge** : Charges professionnelles (date, catégorie, fournisseur, montant, service lié)
+- **ParametresEntreprise** : Configuration (taux URSSAF, mentions, etc.)
+
+### Relations
+- Sale → Client (clientName)
+- Sale → Article (serviceName)
+- Charge → Article (linkedService, optionnel)
+
+## 🧮 Calculs Métier
+
+### Ventes
+- `caHt = quantity × unitPriceHt`
+- `tvaAmount = caHt × (tvaRate / 100)`
+- `totalTtc = caHt + tvaAmount`
+- `year = EXTRACT(YEAR FROM saleDate)`
+
+### Dashboard (par année)
+- `CA_HT_Année = SUM(Sale.caHt WHERE year=Y)`
+- `CA_TTC_Année = SUM(Sale.totalTtc WHERE year=Y)`
+- `Charges_HT_Année = SUM(Charge.amountHt WHERE year=Y)`
+- `Résultat_Net_HT = CA_HT_Année - Charges_HT_Année`
+- `Net_Dispo_Après_URSSAF = Résultat_Net_HT - (CA_HT_Année × tauxUrssaf)`
+
+### Performances par Service
+- `qty_sold = SUM(Sale.quantity WHERE year=Y AND serviceName=s)`
+- `ca_ht = SUM(Sale.caHt WHERE year=Y AND serviceName=s)`
+- `charges_ht_linked = SUM(Charge.amountHt WHERE year=Y AND linkedService=s)`
+- `result_net = ca_ht - charges_ht_linked`
+- `margin_pct = IF ca_ht>0 THEN result_net/ca_ht×100 ELSE 0`
+
+## 📥 Import/Export
+
+### Import CSV
+- **Mapping automatique** des colonnes
+- **Validation** des données avec Zod
+- **Preview** avant import
+- **Gestion des erreurs** détaillée
+
+### Export
+- **CSV** : Toutes les listes
+- **JSON** : Export global complet
+- **SQL DDL** : Schéma de base de données
+
+## 🧪 Tests
+
+### Tests Unitaires
+- Calculs métier (math.ts)
+- Parsers CSV (csv.ts)
+- Validations Zod (validations.ts)
+
+### Tests E2E
+- Création client/article/vente/charge
+- Vérification des KPIs et graphiques
+- Import CSV et validation des totaux
+
+## 🎨 UI/UX
+
+### Design
+- **Interface sobre et professionnelle** (shadcn/ui + Tailwind)
+- **Couleurs** : Blancs et gris doux avec arrondis
+- **Navigation** : Menu horizontal avec icônes
+- **Responsive** : Adapté mobile et desktop
+
+### Composants
+- **DataTable** : Table avec recherche, tri, pagination
+- **KpiCard** : Cartes de métriques avec tendances
+- **YearPicker** : Sélecteur d'année avec URL sync
+- **Charts** : Graphiques Recharts intégrés
+
+## 🔐 Sécurité
+
+- **Validation** côté client et serveur (Zod)
+- **Sanitisation** des entrées utilisateur
+- **Contraintes** d'unicité en base
+- **Gestion d'erreurs** robuste
+
+## 🚀 Déploiement
+
+### Variables d'Environnement
+```env
+DATABASE_URL="file:./dev.db"  # SQLite local
+NEXTAUTH_SECRET="your-secret"
+NEXTAUTH_URL="http://localhost:3000"
+```
+
+### Production
+- **Base de données** : PostgreSQL recommandé
+- **Hébergement** : Vercel, Netlify, ou serveur dédié
+- **CDN** : Pour les assets statiques
+
+## 🤝 Contribution
+
+1. Fork le projet
+2. Créer une branche feature (`git checkout -b feature/AmazingFeature`)
+3. Commit les changements (`git commit -m 'Add AmazingFeature'`)
+4. Push vers la branche (`git push origin feature/AmazingFeature`)
+5. Ouvrir une Pull Request
+
+## 📝 Licence
+
+Ce projet est sous licence MIT. Voir le fichier `LICENSE` pour plus de détails.
+
+## 🆘 Support
+
+Pour toute question ou problème :
+1. Vérifier la documentation
+2. Consulter les issues existantes
+3. Créer une nouvelle issue avec les détails
+
+---
+
+**ARES Dashboard** - Pilotage d'entreprise moderne et efficace 🚀

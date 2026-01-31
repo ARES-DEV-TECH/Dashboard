@@ -1,26 +1,140 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+@custom-variant dark (&:is(.dark *));
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-sans-app, ui-sans-serif, system-ui, sans-serif);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+:root {
+  --radius: 0.75rem;
+  --background: #0f172a;
+  --foreground: #f1f5f9;
+  --card: #1e293b;
+  --card-foreground: #f1f5f9;
+  --primary: #667eea;
+  --primary-foreground: #ffffff;
+  --muted: #334155;
+  --muted-foreground: #94a3b8;
+  --accent: #6366f1;
+  --destructive: #dc2626;
+  --border: rgba(255, 255, 255, 0.15);
+  --input: #334155;
+  --ring: #667eea;
+  --sidebar-foreground: #f1f5f9;
+  --sidebar-primary: #667eea;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #1e293b;
+  --sidebar-border: rgba(255, 255, 255, 0.1);
+}
+
+@layer base {
+  * {
+    @apply border-border;
+    box-sizing: border-box;
+    -webkit-font-smoothing: antialiased;
+  }
+  html {
+    scroll-behavior: smooth;
+    min-height: 100dvh;
+    overflow-x: hidden;
+    -webkit-tap-highlight-color: transparent;
+  }
+  body {
+    @apply bg-background text-foreground font-sans;
+    line-height: 1.6;
+    min-height: 100dvh;
+    overflow-x: hidden;
+    padding-left: env(safe-area-inset-left, 0);
+    padding-right: env(safe-area-inset-right, 0);
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* Sidebar : contenu menu (desktop + drawer) */
+.sidebar-content .sidebar-region-header,
+.sidebar-content .sidebar-region-footer {
+  flex-shrink: 0;
+}
+.sidebar-content .sidebar-region-body {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+.sidebar-content .sidebar-nav-item {
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+.sidebar-content .sidebar-nav-item-active {
+  border-left: 3px solid var(--sidebar-primary);
+  padding-left: calc(1rem - 3px);
+}
+.sidebar-content .sidebar-section-label {
+  letter-spacing: 0.05em;
+}
+
+/* Auth */
+.auth-page input,.auth-page input[type="email"],.auth-page input[type="password"],.auth-page input[type="text"],.auth-page [data-slot="input"] {
+  background-color: #e5e5e5 !important; color: #0a0a0a !important; -webkit-text-fill-color: #0a0a0a !important; caret-color: #0a0a0a !important;
+}
+.auth-page input::placeholder,.auth-page [data-slot="input"]::placeholder { color: #404040 !important; opacity: 1 !important; }
+.auth-page input:-webkit-autofill,.auth-page input:-webkit-autofill:hover,.auth-page input:-webkit-autofill:focus,.auth-page input:-webkit-autofill:active {
+  -webkit-text-fill-color: #0a0a0a !important; background-color: #e5e5e5 !important; box-shadow: 0 0 0 1000px #e5e5e5 inset !important;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.35);
+}
+
+/* Cartes type glass (dashboard) */
+.liquid-glass-card {
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 1rem;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.12);
+}
+.liquid-glass-card:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+  html { scroll-behavior: auto; }
 }

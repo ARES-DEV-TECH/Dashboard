@@ -1,0 +1,25 @@
+# Dependencies (Vercel installe via npm install)
+node_modules
+
+# Build / cache
+.next
+out
+build
+
+# Electron (inutile sur Vercel)
+dist-electron
+electron
+
+# Fichiers lourds / dev
+*.log
+.env*
+.DS_Store
+coverage
+*.tsbuildinfo
+
+# Prisma local / SQLite
+prisma/dev.db
+*.db
+
+# Uploads utilisateur (éviter de déployer des assets lourds)
+public/uploads

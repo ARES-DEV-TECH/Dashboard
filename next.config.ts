@@ -1,7 +1,9 @@
-import type { NextConfig } from "next";
+import type { NextConfig } from 'next'
 
 const nextConfig: NextConfig = {
-  /* config options here */
-};
+  experimental: { optimizeCss: true, optimizePackageImports: ['lucide-react', 'recharts'] },
+  eslint: { ignoreDuringBuilds: true },
+  images: { unoptimized: true, formats: ['image/webp'] },
+}
 
-export default nextConfig;
+export default nextConfig

@@ -1,0 +1,243 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url  	    = env("DATABASE_URL")
+}
+
+// Modèle utilisateur pour l'authentification
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String   // Hashé avec bcrypt
+  firstName String?
+  lastName  String?
+  company   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Relations avec les données métier
+  clients   Client[]
+  articles  Article[]
+  sales     Sale[]
+  charges   Charge[]
+  parameters ParametresEntreprise[]
+  
+  @@map("users")
+}
+
+model Client {
+  clientName String @id  // dérivé de firstName + " " + lastName pour FKs (Sale, Charge, Quote, Invoice)
+  firstName  String
+  lastName   String
+  email      String?
+  phone      String?
+  website    String?
+  company    String?
+  // sales      Sale[]     // Relations supprimées pour éviter les contraintes
+  // quotes     Quote[]
+  // invoices   Invoice[]
+  charges    Charge[] @relation("ChargeClient") // Relation avec les charges
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  
+  // Relation avec l'utilisateur
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([email])
+  @@index([userId])
+  @@map("clients")
+}
+
+model Article {
+  serviceName      String  @id
+  priceHt          Float
+  billByHour       Boolean @default(false) // true = prix par heure + nb heures, false = prix fixe
+  billingFrequency String? // "annuel" | "mensuel" | "ponctuel" — pour le dashboard (CA annualisé)
+  type             String? // "service" | "produit"
+  description      String? // Description détaillée du service
+  // sales       Sale[]     // Relation supprimée pour éviter les contraintes
+  charges     Charge[] @relation("ChargeService")
+  options     ServiceOption[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relation avec l'utilisateur
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("articles")
+}
+
+model ServiceOption {
+  id          String @id @default(cuid())
+  serviceName String
+  name        String // Nom de l'option (ex: "Base de données", "Design sur mesure")
+  description String? // Description de l'option
+  priceHt     Float @default(0) // Prix HT de l'option
+  isDefault   Boolean @default(false) // Si l'option est incluse par défaut
+  article     Article @relation(fields: [serviceName], references: [serviceName], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("service_options")
+}
+
+model Sale {
+  invoiceNo    String   @id
+  saleDate     DateTime
+  clientName   String
+  serviceName  String
+  quantity     Float    @default(1)   // nb heures si facturation à l'heure, sinon 1
+  unitPriceHt  Float
+  unitLabel    String?  // "heure" | "forfait" pour affichage PDF
+  caHt         Float    // quantity * unitPriceHt
+  tvaAmount    Float    // caHt * tauxTvaEntreprise/100
+  totalTtc     Float    // caHt + tvaAmount
+  options      String?  // JSON string des options sélectionnées
+  year         Int
+  quoteId      String?  // Reference to original quote
+  invoiceId    String?  // Reference to invoice
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  
+  // Relation avec l'utilisateur
+  userId       String?
+  user         User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Relations optionnelles - les ventes peuvent exister sans client/article correspondant
+  // client  Client  @relation(fields: [clientName], references: [clientName], onDelete: Cascade)
+  // article Article @relation(fields: [serviceName], references: [serviceName], onDelete: Cascade)
+  // Relations supprimées pour éviter les contraintes de clés étrangères
+  // quote   Quote?  @relation(fields: [quoteId], references: [id], onDelete: SetNull)
+  // invoice Invoice? @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+
+  @@index([saleDate])
+  @@index([clientName])
+  @@index([serviceName])
+  @@index([year])
+  @@index([quoteId])
+  @@index([invoiceId])
+  @@index([userId])
+  @@index([saleDate, year]) // Index composite pour les requêtes par date et année
+  @@index([clientName, serviceName]) // Index composite pour les requêtes par client et service
+  @@map("sales")
+}
+
+model Charge {
+  id            String   @id @default(cuid())
+  expenseDate   DateTime
+  category      String?
+  vendor        String?
+  description   String?
+  amount        Float?   // Montant TTC (renommé de amountTtc)
+  recurring     Boolean?
+  recurringType String? // "mensuel" | "annuel" | "ponctuel"
+  paymentMethod String?
+  notes         String?
+  linkedService String?  // optional FK to Article.serviceName
+  linkedSaleId  String?  // optional FK to Sale.invoiceNo
+  linkedClient  String?  // optional FK to Client.clientName
+  year          Int
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  // Relation avec l'utilisateur
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  article Article? @relation("ChargeService", fields: [linkedService], references: [serviceName], onDelete: SetNull)
+  client  Client?  @relation("ChargeClient", fields: [linkedClient], references: [clientName], onDelete: SetNull)
+
+  @@index([year])
+  @@index([category])
+  @@index([vendor])
+  @@index([linkedService])
+  @@index([linkedSaleId])
+  @@index([linkedClient]) // Index pour les requêtes par client
+  @@index([expenseDate])
+  @@index([userId])
+  @@index([year, category]) // Index composite pour les requêtes par année et catégorie
+  @@index([expenseDate, year]) // Index composite pour les requêtes par date et année
+  @@map("charges")
+}
+
+model Quote {
+  id            String   @id @default(cuid())
+  quoteNo       String   @unique
+  clientName    String
+  clientEmail   String?
+  clientAddress String?
+  quoteDate     DateTime
+  validUntil    DateTime
+  items         String   // JSON string of QuoteItem[]
+  notes         String?
+  status        String   @default("draft") // "draft" | "sent" | "accepted" | "rejected" | "expired"
+  totalHt       Float
+  totalTva      Float
+  totalTtc      Float
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations supprimées pour éviter les contraintes de clés étrangères
+  // client   Client   @relation(fields: [clientName], references: [clientName], onDelete: Cascade)
+  // sales    Sale[]   @relation
+  // invoices Invoice[] @relation
+
+  @@index([quoteNo])
+  @@index([clientName])
+  @@index([status])
+  @@map("quotes")
+}
+
+model Invoice {
+  id            String   @id @default(cuid())
+  invoiceNo     String   @unique
+  quoteId       String?  // Reference to original quote
+  clientName    String
+  clientEmail   String?
+  clientAddress String?
+  invoiceDate   DateTime
+  dueDate       DateTime
+  items         String   // JSON string of QuoteItem[]
+  notes         String?
+  paymentTerms  String?
+  status        String   @default("draft") // "draft" | "sent" | "paid" | "overdue"
+  totalHt       Float
+  totalTva      Float
+  totalTtc      Float
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations supprimées pour éviter les contraintes de clés étrangères
+  // client Client  @relation(fields: [clientName], references: [clientName], onDelete: Cascade)
+  // quote  Quote?  @relation(fields: [quoteId], references: [id], onDelete: SetNull)
+  // sales  Sale[]  @relation
+
+  @@index([invoiceNo])
+  @@index([clientName])
+  @@index([status])
+  @@index([quoteId])
+  @@map("invoices")
+}
+
+model ParametresEntreprise {
+  key   String @id
+  value String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Relation avec l'utilisateur
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("parametres_entreprise")
+}
