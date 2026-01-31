@@ -106,8 +106,10 @@ export async function POST(request: NextRequest) {
     response.cookies.set('auth-token', token, cookieOptions)
     return response
   } catch (error) {
-    console.error('Erreur lors de la connexion:', error)
-    
+    const message = error instanceof Error ? error.message : String(error)
+    console.error('Erreur lors de la connexion:', message, error)
+    if (error instanceof Error && error.cause) console.error('Cause:', error.cause)
+
     if (error instanceof z.ZodError) {
       return NextResponse.json(
         { error: 'Données invalides', details: error.issues },
