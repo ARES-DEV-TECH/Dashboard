@@ -83,10 +83,12 @@ export function calculateServiceDistribution(sales: Array<{year: number, service
   
   sales.forEach(sale => {
     const serviceName = sale.serviceName
-    if (!serviceMap.has(serviceName)) {
-      serviceMap.set(serviceName, { name: serviceName, value: 0 })
+    const entry = serviceMap.get(serviceName)
+    if (!entry) {
+      serviceMap.set(serviceName, { name: serviceName, value: sale.caHt })
+    } else {
+      entry.value += sale.caHt
     }
-    serviceMap.get(serviceName).value += sale.caHt
   })
 
   return Array.from(serviceMap.values())
