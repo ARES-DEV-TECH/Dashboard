@@ -17,10 +17,10 @@ export async function GET(request: NextRequest) {
     const startDate = new Date(year, 0, 1) // 1er janvier
     const endDate = new Date(year, 11, 31) // 31 décembre
 
-    // Récupérer les ventes de l'année (utilisateur connecté ou ventes sans userId / historique)
+    // Récupérer les ventes de l'année - uniquement celles de l'utilisateur connecté
     const sales = await prisma.sale.findMany({
       where: {
-        OR: [{ userId: user.id }, { userId: null }],
+        userId: user.id,
         year,
         saleDate: {
           gte: startDate,

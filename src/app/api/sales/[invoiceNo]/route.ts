@@ -16,7 +16,11 @@ export async function PUT(
     }
 
     const body = await request.json()
-    const { invoiceNo } = await params
+    const raw = (await params).invoiceNo
+    const invoiceNo = typeof raw === 'string' ? decodeURIComponent(raw).trim() : ''
+    if (!invoiceNo) {
+      return NextResponse.json({ error: 'Numéro de facture manquant' }, { status: 400 })
+    }
 
     // Validate first with the schema (expects string)
     const validatedData = updateSaleSchema.parse(body)
@@ -44,7 +48,7 @@ export async function PUT(
       where: { invoiceNo },
       select: { userId: true },
     })
-    if (!existingSale || (existingSale.userId !== null && existingSale.userId !== user.id)) {
+    if (!existingSale || existingSale.userId !== user.id) {
       return NextResponse.json({ error: 'Vente non trouvée' }, { status: 404 })
     }
 
@@ -94,12 +98,16 @@ export async function DELETE(
       return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
     }
 
-    const { invoiceNo } = await params
+    const raw = (await params).invoiceNo
+    const invoiceNo = typeof raw === 'string' ? decodeURIComponent(raw).trim() : ''
+    if (!invoiceNo) {
+      return NextResponse.json({ error: 'Numéro de facture manquant' }, { status: 400 })
+    }
     const existing = await prisma.sale.findUnique({
       where: { invoiceNo },
       select: { userId: true },
     })
-    if (!existing || (existing.userId !== null && existing.userId !== user.id)) {
+    if (!existing || existing.userId !== user.id) {
       return NextResponse.json({ error: 'Vente non trouvée' }, { status: 404 })
     }
 

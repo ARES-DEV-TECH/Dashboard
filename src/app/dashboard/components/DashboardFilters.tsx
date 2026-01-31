@@ -1,5 +1,6 @@
 'use client'
 
+import { Loader2 } from 'lucide-react'
 import { DateRange, calculatePresetDates } from '@/lib/date-utils'
 
 function formatDateForInput(d: Date): string {
@@ -14,15 +15,23 @@ export function DashboardFilters({
   setDateRange,
   comparisonMode,
   setComparisonMode,
+  refreshing = false,
 }: {
   dateRange: DateRange
   setDateRange: (range: DateRange) => void
   comparisonMode: boolean
   setComparisonMode: (v: boolean) => void
+  refreshing?: boolean
 }) {
   return (
     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
       <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+        {refreshing && (
+          <span className="flex items-center gap-1.5 text-sm text-muted-foreground" aria-hidden>
+            <Loader2 className="size-4 animate-spin" />
+            Mise à jour…
+          </span>
+        )}
         <select
           value={dateRange.preset}
           onChange={(e) => setDateRange(calculatePresetDates(e.target.value as Parameters<typeof calculatePresetDates>[0]))}

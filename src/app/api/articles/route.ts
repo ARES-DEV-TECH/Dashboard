@@ -52,8 +52,8 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const validatedData = createArticleSchema.parse(body)
 
-    const existingArticle = await prisma.article.findUnique({
-      where: { serviceName: validatedData.serviceName }
+    const existingArticle = await prisma.article.findFirst({
+      where: { userId: user.id, serviceName: validatedData.serviceName },
     })
 
     if (existingArticle) {

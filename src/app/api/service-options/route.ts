@@ -23,11 +23,11 @@ export async function GET(request: NextRequest) {
     const serviceName = searchParams.get('serviceName')
 
     if (serviceName) {
-      const article = await prisma.article.findUnique({
-        where: { serviceName },
+      const article = await prisma.article.findFirst({
+        where: { userId: user.id, serviceName },
         select: { userId: true },
       })
-      if (!article || article.userId !== user.id) {
+      if (!article) {
         return NextResponse.json({ options: [] })
       }
     }
@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
         })).map((a) => a.serviceName)
 
     const options = await prisma.serviceOption.findMany({
-      where: { serviceName: { in: articleServiceNames } },
+      where: { userId: user.id, serviceName: { in: articleServiceNames } },
       orderBy: { createdAt: 'asc' },
     })
 
@@ -64,11 +64,11 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const validatedData = serviceOptionSchema.parse(body)
 
-    const service = await prisma.article.findUnique({
-      where: { serviceName: validatedData.serviceName },
+    const service = await prisma.article.findFirst({
+      where: { userId: user.id, serviceName: validatedData.serviceName },
       select: { userId: true },
     })
-    if (!service || service.userId !== user.id) {
+    if (!service) {
       return NextResponse.json(
         { error: 'Service non trouvé' },
         { status: 404 }
@@ -77,6 +77,7 @@ export async function POST(request: NextRequest) {
 
     const option = await prisma.serviceOption.create({
       data: {
+        userId: user.id,
         serviceName: validatedData.serviceName,
         name: validatedData.name,
         description: validatedData.description,

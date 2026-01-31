@@ -93,11 +93,13 @@ const DashboardContent = memo(function DashboardContent() {
   const [chargesData, setChargesData] = useState<ChargesBreakdown | null>(null)
   const [evolutionData, setEvolutionData] = useState<EvolutionData | null>(null)
   const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
   const [companySettings, setCompanySettings] = useState<{ defaultTvaRate?: number; tauxUrssaf?: number } | null>(null)
 
-  const loadDashboardData = useCallback(async () => {
+  const loadDashboardData = useCallback(async (isInitial = false) => {
     try {
-      setLoading(true)
+      if (isInitial) setLoading(true)
+      else setRefreshing(true)
       const params = buildApiParams(dateRange)
       const [dashboardResponse, chargesResponse, evolutionResponse, settingsResponse] = await Promise.all([
         fetchDashboard(params),
@@ -159,10 +161,11 @@ const DashboardContent = memo(function DashboardContent() {
         setCompanySettings(settingsObj as { defaultTvaRate?: number; tauxUrssaf?: number })
         setComparisonData(comparison)
         setLoading(false)
+        setRefreshing(false)
       })
     } catch {
-      // keep previous data on error
       setLoading(false)
+      setRefreshing(false)
     }
   }, [dateRange, comparisonMode])
 
@@ -212,7 +215,8 @@ const DashboardContent = memo(function DashboardContent() {
 
 
   useEffect(() => {
-    loadDashboardData()
+    const isInitial = data === null && chargesData === null && evolutionData === null
+    loadDashboardData(isInitial)
   }, [loadDashboardData])
 
   useEffect(() => {
@@ -256,7 +260,7 @@ const DashboardContent = memo(function DashboardContent() {
       <div className="bg-destructive/10 border border-destructive/30 rounded-xl p-4 liquid-glass-card">
         <p className="text-destructive font-medium">Erreur lors du chargement des données</p>
         <button
-          onClick={loadDashboardData}
+          onClick={() => loadDashboardData(true)}
           className="mt-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 transition-opacity"
         >
           Réessayer
@@ -277,6 +281,7 @@ const DashboardContent = memo(function DashboardContent() {
         setDateRange={setDateRange}
         comparisonMode={comparisonMode}
         setComparisonMode={setComparisonMode}
+        refreshing={refreshing}
       />
 
       <DashboardKPIs kpis={memoizedKPIs} />

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-
 import { prisma } from '@/lib/db'
+import { getCurrentUser } from '@/lib/auth'
 import { z } from 'zod'
 
 const quoteItemSchema = z.object({
@@ -57,9 +57,13 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const validatedData = createQuoteSchema.parse(body)
 
-    // Vérifier que le client existe
-    const client = await prisma.client.findUnique({
-      where: { clientName: validatedData.clientName }
+    const user = await getCurrentUser(request)
+    if (!user) {
+      return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
+    }
+    // Vérifier que le client existe (pour cet utilisateur)
+    const client = await prisma.client.findFirst({
+      where: { userId: user.id, clientName: validatedData.clientName }
     })
 
     if (!client) {
@@ -87,9 +91,9 @@ export async function POST(request: NextRequest) {
       totalHt += itemTotal
     }
 
-    // Récupérer le taux de TVA par défaut
-    const tvaParam = await prisma.parametresEntreprise.findUnique({
-      where: { key: 'defaultTvaRate' }
+    // Récupérer le taux de TVA par défaut (paramètre de l'utilisateur connecté)
+    const tvaParam = await prisma.parametresEntreprise.findFirst({
+      where: { userId: user.id, key: 'defaultTvaRate' }
     })
     const tvaRate = tvaParam ? parseFloat(tvaParam.value) : 20
     

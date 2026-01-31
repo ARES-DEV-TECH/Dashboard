@@ -80,6 +80,16 @@ npx prisma db push
 npm run db:seed
 ```
 
+### Envoi d’emails (mot de passe oublié)
+
+Pour que les utilisateurs reçoivent un email avec le lien de réinitialisation, configurez [Resend](https://resend.com) :
+
+- **Vercel / production** : dans les variables d’environnement du projet, ajoutez :
+  - `RESEND_API_KEY` : clé API Resend (créer un domaine et une clé sur resend.com)
+  - `RESEND_FROM_EMAIL` : adresse d’envoi (ex. `noreply@votredomaine.com`)
+
+Sans ces variables, le lien de réinitialisation est tout de même affiché après la demande (en dev dans l’interface, en production avec un message indiquant que l’email n’est pas configuré).
+
 ## 🚀 Commandes
 
 ### Développement

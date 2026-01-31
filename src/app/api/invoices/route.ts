@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-
 import { prisma } from '@/lib/db'
+import { getCurrentUser } from '@/lib/auth'
 import { createInvoiceSchema } from '@/lib/validations'
 
 export async function GET(request: NextRequest) {
@@ -55,6 +55,10 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const user = await getCurrentUser(request)
+    if (!user) {
+      return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
+    }
     const body = await request.json()
     
     // Parse items if it's a JSON string
@@ -71,9 +75,9 @@ export async function POST(request: NextRequest) {
     })
     const invoiceNo = `F${year}-${String(existingCount + 1).padStart(4, '0')}`
 
-    // Récupérer le taux de TVA par défaut
-    const tvaParam = await prisma.parametresEntreprise.findUnique({
-      where: { key: 'defaultTvaRate' }
+    // Récupérer le taux de TVA par défaut (paramètre de l'utilisateur connecté)
+    const tvaParam = await prisma.parametresEntreprise.findFirst({
+      where: { userId: user.id, key: 'defaultTvaRate' }
     })
     const tvaRate = tvaParam ? parseFloat(tvaParam.value) : 20
 

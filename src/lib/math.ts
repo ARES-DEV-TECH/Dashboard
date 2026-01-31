@@ -78,12 +78,10 @@ export function calculateMonthlyData(sales: Array<{year: number, saleDate: Date,
 }
 
 export function calculateServiceDistribution(sales: Array<{year: number, serviceName: string, caHt: number}>) {
-  const currentYear = new Date().getFullYear()
-  const yearSales = sales.filter(sale => sale.year === currentYear)
+  // Les ventes sont déjà filtrées par l'API selon la période sélectionnée (année, mois, etc.)
+  const serviceMap = new Map<string, { name: string; value: number }>()
   
-  const serviceMap = new Map()
-  
-  yearSales.forEach(sale => {
+  sales.forEach(sale => {
     const serviceName = sale.serviceName
     if (!serviceMap.has(serviceName)) {
       serviceMap.set(serviceName, { name: serviceName, value: 0 })

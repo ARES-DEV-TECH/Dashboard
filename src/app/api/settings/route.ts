@@ -40,9 +40,9 @@ export async function POST(request: NextRequest) {
     }
 
     const parameter = await prisma.parametresEntreprise.upsert({
-      where: { key },
+      where: { userId_key: { userId: user.id, key } },
       update: { value },
-      create: { key, value, userId: user.id },
+      create: { userId: user.id, key, value },
     })
 
     // Le cache sera invalidé automatiquement lors de la prochaine requête

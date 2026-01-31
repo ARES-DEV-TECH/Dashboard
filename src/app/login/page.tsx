@@ -34,40 +34,22 @@ function LoginContent() {
     }
   }, [searchParams])
 
+  const { login: doLogin } = useAuth()
+
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     setError('')
     setLoading(true)
-
     try {
-      // Soumission par formulaire POST + redirection serveur : le cookie est bien enregistré
-      // quand le navigateur suit la 302 (plus fiable que fetch + window.location)
-      const form = document.createElement('form')
-      form.method = 'POST'
-      form.action = '/api/auth/login?redirect=true'
-      form.style.display = 'none'
-
-      const emailInput = document.createElement('input')
-      emailInput.name = 'email'
-      emailInput.value = email.trim()
-      form.appendChild(emailInput)
-
-      const passwordInput = document.createElement('input')
-      passwordInput.name = 'password'
-      passwordInput.value = password
-      form.appendChild(passwordInput)
-
-      const rememberInput = document.createElement('input')
-      rememberInput.name = 'rememberMe'
-      rememberInput.type = 'hidden'
-      rememberInput.value = rememberMe ? 'true' : 'false'
-      form.appendChild(rememberInput)
-
-      document.body.appendChild(form)
-      form.submit()
-      return
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erreur de connexion')
+      const ok = await doLogin(email.trim(), password, rememberMe)
+      if (ok) {
+        router.replace('/dashboard')
+        return
+      }
+      setError('Email ou mot de passe incorrect')
+    } catch {
+      setError('Erreur de connexion')
+    } finally {
       setLoading(false)
     }
   }
@@ -135,16 +117,21 @@ function LoginContent() {
                   </button>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
-                <Checkbox
-                  id="rememberMe"
-                  checked={rememberMe}
-                  onCheckedChange={(checked) => setRememberMe(checked === true)}
-                  className="border-muted-foreground data-[state=checked]:bg-primary data-[state=checked]:border-primary"
-                />
-                <Label htmlFor="rememberMe" className="text-sm cursor-pointer select-none text-foreground/80">
-                  Se souvenir de moi
-                </Label>
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="rememberMe"
+                    checked={rememberMe}
+                    onCheckedChange={(checked) => setRememberMe(checked === true)}
+                    className="border-muted-foreground data-[state=checked]:bg-primary data-[state=checked]:border-primary"
+                  />
+                  <Label htmlFor="rememberMe" className="text-sm cursor-pointer select-none text-foreground/80">
+                    Se souvenir de moi
+                  </Label>
+                </div>
+                <a href="/forgot-password" className="text-sm font-medium text-primary hover:underline">
+                  Mot de passe oublié ?
+                </a>
               </div>
             </div>
             {error && (

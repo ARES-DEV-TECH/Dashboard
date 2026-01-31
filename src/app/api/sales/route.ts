@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
 
     const skip = (page - 1) * limit
 
-    const userFilter = { OR: [{ userId: user.id }, { userId: null }] }
+    const userFilter = { userId: user.id }
     const where: Record<string, unknown> = search
       ? {
           AND: [
@@ -101,8 +101,8 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const validatedData = createSaleSchema.parse(body)
 
-    const existingSale = await prisma.sale.findUnique({
-      where: { invoiceNo: validatedData.invoiceNo }
+    const existingSale = await prisma.sale.findFirst({
+      where: { invoiceNo: validatedData.invoiceNo, userId: user.id }
     })
 
     if (existingSale) {

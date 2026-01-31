@@ -53,9 +53,9 @@ export async function POST(request: NextRequest) {
     // Sauvegarder le chemin dans la base de données
     const logoPath = `/uploads/logos/${fileName}`
     await prisma.parametresEntreprise.upsert({
-      where: { key: 'logoPath' },
+      where: { userId_key: { userId: user.id, key: 'logoPath' } },
       update: { value: logoPath },
-      create: { key: 'logoPath', value: logoPath, userId: user.id },
+      create: { userId: user.id, key: 'logoPath', value: logoPath },
     })
 
     return NextResponse.json({ 
@@ -72,11 +72,14 @@ export async function POST(request: NextRequest) {
   }
 }
 
-export async function DELETE() {
+export async function DELETE(request: NextRequest) {
   try {
-    // Supprimer le logo de la base de données
+    const user = await getCurrentUser(request)
+    if (!user) {
+      return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
+    }
     await prisma.parametresEntreprise.deleteMany({
-      where: { key: 'logoPath' }
+      where: { userId: user.id, key: 'logoPath' }
     })
 
     return NextResponse.json({ 

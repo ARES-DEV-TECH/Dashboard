@@ -60,10 +60,10 @@ export const GET = requireAuth(async (request: NextRequest, user: UserPayload) =
 
     // Fetch all data in parallel for better performance
     const [sales, charges, serviceStats, articles] = await Promise.all([
-      // Fetch sales for the date range - utilisateur connecté ou ventes sans userId (historique)
+      // Fetch sales for the date range - uniquement les ventes de l'utilisateur connecté
       prisma.sale.findMany({
         where: { 
-          OR: [{ userId: user.id }, { userId: null }],
+          userId: user.id,
           year: range === 'custom' ? undefined : year,
           saleDate: {
             gte: startDate,
@@ -111,11 +111,11 @@ export const GET = requireAuth(async (request: NextRequest, user: UserPayload) =
         },
       }),
       
-      // Get top services by CA - utilisateur ou ventes sans userId
+      // Get top services by CA - uniquement ventes de l'utilisateur
       prisma.sale.groupBy({
         by: ['serviceName'],
         where: { 
-          OR: [{ userId: user.id }, { userId: null }],
+          userId: user.id,
           year: range === 'custom' ? undefined : year,
           saleDate: {
             gte: startDate,

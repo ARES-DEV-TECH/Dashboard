@@ -39,6 +39,25 @@ export function verifyToken(token: string): UserPayload | null {
   }
 }
 
+/** Token pour réinitialisation de mot de passe (valide 1 h) */
+export function generateResetToken(email: string): string {
+  return jwt.sign(
+    { email, purpose: 'password-reset' },
+    getJwtSecret(),
+    { expiresIn: '1h' } as jwt.SignOptions
+  )
+}
+
+export function verifyResetToken(token: string): { email: string } | null {
+  try {
+    const payload = jwt.verify(token, getJwtSecret()) as { email?: string; purpose?: string }
+    if (payload?.purpose !== 'password-reset' || !payload?.email) return null
+    return { email: payload.email }
+  } catch {
+    return null
+  }
+}
+
 export async function getCurrentUser(request: NextRequest): Promise<UserPayload | null> {
   try {
     // Priorité à l'en-tête x-user-id défini par le middleware (cookie déjà vérifié côté Edge)

@@ -49,8 +49,8 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const existingClient = await prisma.client.findUnique({
-      where: { clientName },
+    const existingClient = await prisma.client.findFirst({
+      where: { userId: user.id, clientName },
     })
 
     if (existingClient) {
@@ -62,6 +62,7 @@ export async function POST(request: NextRequest) {
 
     const client = await prisma.client.create({
       data: {
+        userId: user.id,
         clientName,
         firstName: validatedData.firstName.trim(),
         lastName: validatedData.lastName.trim(),
@@ -69,7 +70,6 @@ export async function POST(request: NextRequest) {
         phone: validatedData.phone,
         website: validatedData.website,
         company: validatedData.company,
-        userId: user.id,
       },
     })
 

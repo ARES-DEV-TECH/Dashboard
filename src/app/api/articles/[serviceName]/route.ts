@@ -22,10 +22,10 @@ export async function PUT(
     const decodedName = decodeURIComponent(serviceName)
 
     const existing = await prisma.article.findUnique({
-      where: { serviceName: decodedName },
+      where: { userId_serviceName: { userId: user.id, serviceName: decodedName } },
       select: { userId: true },
     })
-    if (!existing || existing.userId !== user.id) {
+    if (!existing) {
       return NextResponse.json({ error: 'Article non trouvé' }, { status: 404 })
     }
 
@@ -46,7 +46,7 @@ export async function PUT(
     }
 
     const article = await prisma.article.update({
-      where: { serviceName: decodedName },
+      where: { userId_serviceName: { userId: user.id, serviceName: decodedName } },
       data: data as Parameters<typeof prisma.article.update>[0]['data'],
     })
 
@@ -96,15 +96,15 @@ export async function DELETE(
     const { serviceName } = await params
     const decodedName = decodeURIComponent(serviceName)
     const existing = await prisma.article.findUnique({
-      where: { serviceName: decodedName },
+      where: { userId_serviceName: { userId: user.id, serviceName: decodedName } },
       select: { userId: true },
     })
-    if (!existing || existing.userId !== user.id) {
+    if (!existing) {
       return NextResponse.json({ error: 'Article non trouvé' }, { status: 404 })
     }
 
     await prisma.article.delete({
-      where: { serviceName: decodedName },
+      where: { userId_serviceName: { userId: user.id, serviceName: decodedName } },
     })
 
     return NextResponse.json({ success: true })

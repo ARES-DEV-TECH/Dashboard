@@ -13,7 +13,7 @@ interface User {
 interface AuthContextType {
   user: User | null
   loading: boolean
-  login: (email: string, password: string) => Promise<boolean>
+  login: (email: string, password: string, rememberMe?: boolean) => Promise<boolean>
   register: (email: string, password: string, firstName: string, lastName: string, company?: string) => Promise<boolean>
   logout: () => Promise<void>
 }
@@ -25,32 +25,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const id = setTimeout(checkAuth, 0)
-    return () => clearTimeout(id)
+    let cancelled = false
+    const run = async () => {
+      try {
+        const response = await fetch('/api/auth/me', { credentials: 'include' })
+        if (cancelled) return
+        if (response.ok) {
+          const data = await response.json()
+          setUser(data.user)
+        }
+      } catch {
+        if (!cancelled) { /* non connecté ou erreur */ }
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+    run()
+    return () => { cancelled = true }
   }, [])
 
-  const checkAuth = async () => {
-    try {
-      const response = await fetch('/api/auth/me', { credentials: 'include' })
-      if (response.ok) {
-        const data = await response.json()
-        setUser(data.user)
-      }
-    } catch {
-      // Non connecté ou erreur réseau
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const login = async (email: string, password: string): Promise<boolean> => {
+  const login = async (email: string, password: string, rememberMe = true): Promise<boolean> => {
     try {
       const response = await fetch('/api/auth/login', {
         method: 'POST',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email, password, rememberMe }),
       })
 
       if (response.ok) {
@@ -69,6 +71,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const response = await fetch('/api/auth/register', {
         method: 'POST',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
         },

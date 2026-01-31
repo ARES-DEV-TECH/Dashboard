@@ -300,19 +300,26 @@ export function SalesContent() {
     }
   }
 
-  const handleDelete = async (id: string) => {
-    if (confirm('Êtes-vous sûr de vouloir supprimer cette vente ?')) {
-      try {
-        const response = await electronFetch(`/api/sales/${id}`, { method: 'DELETE' })
-        if (response.ok) {
-          await loadSales()
-        } else {
-          alert('Erreur lors de la suppression')
-        }
-      } catch (error) {
-        console.error('Erreur lors de la suppression:', error)
-        alert('Erreur lors de la suppression')
+  const handleDelete = async (sale: { invoiceNo?: string }) => {
+    const invoiceNo = sale?.invoiceNo
+    if (!invoiceNo) {
+      console.error('handleDelete: invoiceNo manquant', sale)
+      alert('Impossible de supprimer : numéro de facture manquant.')
+      return
+    }
+    if (!confirm('Êtes-vous sûr de vouloir supprimer cette vente ?')) return
+    try {
+      const url = `/api/sales/${encodeURIComponent(invoiceNo)}`
+      const response = await electronFetch(url, { method: 'DELETE' })
+      if (response.ok) {
+        await loadSales()
+      } else {
+        const err = await response.json().catch(() => ({}))
+        alert(err?.error || `Erreur lors de la suppression (${response.status})`)
       }
+    } catch (error) {
+      console.error('Erreur lors de la suppression:', error)
+      alert('Erreur lors de la suppression')
     }
   }
 
@@ -413,7 +420,7 @@ export function SalesContent() {
           ) : (
             <div className="space-y-2">
               {sales.map((sale, index) => (
-                <div key={sale.id || `sale-${index}`} className="border border-border rounded-lg p-3">
+                <div key={sale.invoiceNo || `sale-${index}`} className="border border-border rounded-lg p-3">
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>
                       <span className="font-medium">{sale.invoiceNo}</span>
@@ -434,7 +441,7 @@ export function SalesContent() {
                         <Button size="sm" variant="outline" onClick={() => handleEdit(sale)} aria-label="Modifier la vente">
                           ✏️
                         </Button>
-                        <Button size="sm" variant="outline" onClick={() => handleDelete(sale.id)} aria-label="Supprimer la vente">
+                        <Button size="sm" variant="outline" onClick={() => handleDelete(sale)} aria-label="Supprimer la vente">
                           🗑️
                         </Button>
                       </div>
