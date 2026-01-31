@@ -43,7 +43,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   if (isAuth) return <>{children}</>
 
   return (
-    <div className="flex flex-col lg:flex-row min-h-dvh min-h-screen bg-background text-foreground">
+    <div className="flex flex-col lg:flex-row h-dvh min-h-screen overflow-hidden bg-background text-foreground">
       {/* Mobile: barre fixe */}
       <header
         className="lg:hidden fixed top-0 left-0 right-0 z-[100] h-14 flex items-center justify-between px-4 bg-background border-b border-border"
@@ -109,20 +109,20 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         </div>
       </aside>
 
-      {/* Desktop: sidebar dans le flux */}
+      {/* Desktop / tablette: sidebar fixe en hauteur, ne défile pas */}
       <aside
-        className="hidden lg:flex lg:flex-col lg:w-[280px] lg:shrink-0 lg:sticky lg:top-0 lg:h-dvh lg:border-r lg:border-border lg:bg-background"
+        className="hidden lg:flex lg:flex-col lg:w-[280px] lg:shrink-0 lg:h-dvh lg:max-h-dvh lg:border-r lg:border-border lg:bg-background"
         aria-label="Navigation"
       >
         <SidebarContent />
       </aside>
 
-      {/* Contenu principal */}
+      {/* Contenu principal : seul cette zone défile */}
       <main
-        className="flex-1 min-w-0 min-h-0 flex flex-col pt-14 lg:pt-0"
+        className="flex-1 min-w-0 min-h-0 flex flex-col pt-14 lg:pt-0 lg:overflow-hidden"
         role="main"
       >
-        <div className="flex-1 min-h-0 overflow-auto px-4 py-4 sm:px-6 sm:py-6">
+        <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-4 py-4 sm:px-6 sm:py-6">
           <div className="mx-auto max-w-6xl w-full">
             {children}
           </div>
