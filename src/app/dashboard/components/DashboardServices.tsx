@@ -113,7 +113,7 @@ export function DashboardServices({
                         color: '#f1f5f9',
                       }}
                       labelStyle={{ color: '#f1f5f9' }}
-                      formatter={(value: number) => [formatEur(value), 'CA HT']}
+                      formatter={(value: number | undefined) => [formatEur(value ?? 0), 'CA HT']}
                     />
                     <Legend verticalAlign="bottom" height={36} wrapperStyle={{ paddingTop: 8 }} />
                   </PieChart>
@@ -149,7 +149,7 @@ export function DashboardServices({
                         color: '#f1f5f9',
                       }}
                       labelStyle={{ color: '#f1f5f9' }}
-                      formatter={(value: number, name: string) => [formatEur(value), name]}
+                      formatter={(value: number | undefined, name?: string) => [formatEur(value ?? 0), name ?? '']}
                     />
                     {serviceAnalysis.map((service, index) => (
                       <Line

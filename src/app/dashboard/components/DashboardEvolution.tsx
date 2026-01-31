@@ -60,12 +60,12 @@ export function DashboardEvolution({ evolutionData }: { evolutionData: Evolution
                     color: '#f1f5f9',
                   }}
                   labelStyle={{ color: '#f1f5f9' }}
-                  formatter={(value: number, name: string) => [
+                  formatter={(value: number | undefined, name?: string) => [
                     new Intl.NumberFormat('fr-FR', {
                       style: 'currency',
                       currency: 'EUR',
-                    }).format(value),
-                    name === 'sales.totalHt' ? 'CA HT' : name === 'charges.totalHt' ? 'Charges HT' : name === 'result' ? 'Résultat' : name,
+                    }).format(value ?? 0),
+                    (name === 'sales.totalHt' ? 'CA HT' : name === 'charges.totalHt' ? 'Charges HT' : name === 'result' ? 'Résultat' : name) ?? '',
                   ]}
                 />
                 <Line type="monotone" dataKey="sales.totalHt" stroke="#667eea" strokeWidth={3} name="CA HT" />
@@ -102,8 +102,8 @@ export function DashboardEvolution({ evolutionData }: { evolutionData: Evolution
                     color: '#f1f5f9',
                   }}
                   labelStyle={{ color: '#f1f5f9' }}
-                  formatter={(value: number) => [
-                    new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(value),
+                  formatter={(value: number | undefined) => [
+                    new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(value ?? 0),
                     'Résultat HT',
                   ]}
                 />
