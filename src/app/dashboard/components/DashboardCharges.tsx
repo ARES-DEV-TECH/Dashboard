@@ -121,7 +121,7 @@ export function DashboardCharges({
                       color: '#f1f5f9',
                     }}
                     labelStyle={{ color: '#f1f5f9' }}
-                    formatter={(value: unknown) => [formatEur(Number(value) || 0), 'Charges']}
+                    formatter={((value: unknown) => [formatEur(Number(value) || 0), 'Charges']) as any}
                   />
                   <Legend verticalAlign="bottom" height={36} wrapperStyle={{ paddingTop: 8 }} />
                 </PieChart>
@@ -168,7 +168,7 @@ export function DashboardCharges({
                       color: '#f1f5f9',
                     }}
                     labelStyle={{ color: '#f1f5f9' }}
-                    formatter={(value: unknown) => [formatEur(Number(value) || 0), 'Charges']}
+                    formatter={((value: unknown) => [formatEur(Number(value) || 0), 'Charges']) as any}
                   />
                   <Legend verticalAlign="bottom" height={36} wrapperStyle={{ paddingTop: 8 }} />
                 </PieChart>
