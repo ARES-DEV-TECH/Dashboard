@@ -23,6 +23,9 @@
 # production
 /build
 
+# données projet (roadmap, doc interne — ne pas versionner)
+ROADMAP.md
+
 # misc
 .DS_Store
 *.pem
