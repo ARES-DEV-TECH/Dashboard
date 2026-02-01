@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import useSWR from 'swr'
 import { DataTable, Column } from '@/components/ui/data-table'
 import { Button } from '@/components/ui/button'
@@ -196,6 +196,12 @@ export function ArticlesContent() {
     setIsDialogOpen(true)
   }
 
+  useEffect(() => {
+    const handler = () => handleAdd()
+    window.addEventListener('shortcut-new', handler)
+    return () => window.removeEventListener('shortcut-new', handler)
+  }, [])
+
   const columns: Column<Article>[] = [
     {
       key: 'serviceName',
@@ -317,6 +323,7 @@ export function ArticlesContent() {
         onDelete={handleDelete}
         onExport={handleExport}
         searchPlaceholder="Rechercher un article..."
+        emptyMessage="Aucun article. Créez votre premier service."
         virtualized
       />
 

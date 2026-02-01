@@ -2,6 +2,12 @@
 
 À vérifier avant / après déploiement (ex. Vercel).
 
+## Avant déploiement
+
+- [ ] **Build** : `npm run build` réussit en local.
+- [ ] **Variables d’env** : JWT_SECRET, DATABASE_URL / DATABASE_POOLER_URL, emails (Resend ou SMTP), optionnel Sentry.
+- [ ] **VERCEL_URL** : en prod Vercel définit automatiquement cette variable (utilisée pour les liens dans les emails : confirmation, reset password). Si déploiement ailleurs, définir l’URL publique de l’app.
+
 ## Base de données
 
 ### Pooler (Supabase / Vercel)
@@ -12,15 +18,23 @@
 
 ### Migrations et index
 
-- [ ] Toutes les migrations Prisma sont appliquées en prod : `npx prisma migrate deploy` (ou via le pipeline de déploiement).
-- [ ] Migration des index de perf : `20260131100000_add_perf_indexes` (et les autres selon l’historique).
+- [ ] Colonne **emailVerifiedAt** sur `users` : si l’historique migrate ne s’applique pas (ex. BDD PostgreSQL alors que migrations créées en SQLite), exécuter à la main :
+  ```sql
+  ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "emailVerifiedAt" TIMESTAMP(3);
+  UPDATE "users" SET "emailVerifiedAt" = "createdAt" WHERE "emailVerifiedAt" IS NULL;
+  ```
+- [ ] Ou utiliser `npx prisma db push` pour synchroniser le schéma.
+- [ ] Index de perf : `20260131100000_add_perf_indexes` (sales_userId_saleDate_idx, charges_userId_expenseDate_idx, etc.) appliqués en prod.
 - [ ] En local avec la même base : vérifier que les index existent et que les requêtes lourdes (dashboard, listes) sont rapides.
 
 ## Variables d’environnement
 
-- [ ] **JWT_SECRET** : secret fort pour les sessions.
+- [ ] **JWT_SECRET** : secret fort pour les sessions (et tokens confirmation / reset password).
 - [ ] **DATABASE_URL** et / ou **DATABASE_POOLER_URL** (voir ci-dessus).
-- [ ] **Resend** (optionnel) : clé API pour envoi d’emails (mot de passe oublié).
+- [ ] **Emails** : Resend (`RESEND_API_KEY`, `RESEND_FROM_EMAIL`) ou SMTP (`SMTP_HOST`, `SMTP_PORT` 465, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM`) pour :
+  - mot de passe oublié,
+  - confirmation d’inscription (lien « Valider mon compte »),
+  - email de bienvenue (après validation du compte).
 - [ ] **Sentry** (optionnel) : `NEXT_PUBLIC_SENTRY_DSN`, `SENTRY_DSN`, etc.
 
 ## Rate limiting
@@ -28,6 +42,7 @@
 - [x] **Login** : 10 tentatives / minute par IP (in-memory par instance).
 - [x] **Mot de passe oublié** : 5 demandes / minute par IP.
 - [x] **Réinitialisation mot de passe** : 5 soumissions / minute par IP.
+- [x] **Renvoyer email de confirmation** : 3 demandes / minute par IP.
 - [ ] Pour une limite **globale** (multi-instances) : prévoir Redis ou Vercel KV (optionnel).
 
 ## Procédure de rollback
@@ -43,5 +58,8 @@ En cas de problème après un déploiement :
 
 ## Après déploiement
 
-- [ ] Tester une connexion et une navigation (dashboard, listes).
-- [ ] Vérifier les toasts et Sentry en cas d’erreur.
+- [ ] **Connexion** : se connecter avec un compte existant (email déjà vérifié).
+- [ ] **Navigation** : dashboard, listes (clients, articles, ventes, charges), paramètres.
+- [ ] **Inscription** : créer un compte → vérifier réception email « Validez votre compte » → cliquer sur le lien → vérifier page « Compte activé » et email de bienvenue → se connecter.
+- [ ] **Mot de passe oublié** : demander un lien → vérifier réception et réinitialisation.
+- [ ] **Toasts et Sentry** : vérifier en cas d’erreur (message utilisateur + rapport Sentry si configuré).

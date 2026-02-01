@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import useSWR from 'swr'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -111,6 +111,12 @@ export function SalesContent() {
     setSelectedOptions([])
     setIsDialogOpen(true)
   }
+
+  useEffect(() => {
+    const handler = () => handleAdd()
+    window.addEventListener('shortcut-new', handler)
+    return () => window.removeEventListener('shortcut-new', handler)
+  }, [])
 
   // Fonction utilitaire pour formater les dates
   const formatDateForInput = (date: any) => {

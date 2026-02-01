@@ -13,7 +13,8 @@ interface User {
 interface AuthContextType {
   user: User | null
   loading: boolean
-  login: (email: string, password: string, rememberMe?: boolean) => Promise<boolean>
+  /** Retourne true si connecté, false si échec, 'email_not_verified' si compte non validé. */
+  login: (email: string, password: string, rememberMe?: boolean) => Promise<boolean | 'email_not_verified'>
   register: (email: string, password: string, firstName: string, lastName: string, company?: string) => Promise<boolean>
   logout: () => Promise<void>
 }
@@ -44,7 +45,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => { cancelled = true }
   }, [])
 
-  const login = async (email: string, password: string, rememberMe = true): Promise<boolean> => {
+  const login = async (email: string, password: string, rememberMe = true): Promise<boolean | 'email_not_verified'> => {
     try {
       const response = await fetch('/api/auth/login', {
         method: 'POST',
@@ -60,6 +61,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(data.user)
         return true
       }
+      if (response.status === 403) return 'email_not_verified'
       return false
     } catch (error) {
       console.error('Erreur de connexion:', error)

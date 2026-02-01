@@ -19,6 +19,9 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="fr">
       <body className={`${inter.variable} font-sans antialiased`}>
+        <a href="#main-content" className="skip-link">
+          Aller au contenu
+        </a>
         <AuthProvider>
           <AppLayout>{children}</AppLayout>
           <Toaster />

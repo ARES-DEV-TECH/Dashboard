@@ -46,12 +46,15 @@ export async function POST(request: NextRequest) {
 
     // Trouver l'utilisateur
     const user = await prisma.user.findUnique({
-      where: { email }
+      where: { email },
+      select: { id: true, email: true, password: true, firstName: true, lastName: true, company: true, emailVerifiedAt: true },
     })
 
     const wantsRedirect = request.nextUrl.searchParams.get('redirect') === 'true'
     const loginErrorUrl = new URL('/login', request.url)
     loginErrorUrl.searchParams.set('error', 'invalid_credentials')
+    const loginUnverifiedUrl = new URL('/login', request.url)
+    loginUnverifiedUrl.searchParams.set('error', 'email_not_verified')
 
     if (!user) {
       if (wantsRedirect) {
@@ -60,6 +63,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: 'Email ou mot de passe incorrect' },
         { status: 401 }
+      )
+    }
+
+    if (!user.emailVerifiedAt) {
+      if (wantsRedirect) {
+        return NextResponse.redirect(loginUnverifiedUrl, 302)
+      }
+      return NextResponse.json(
+        { error: 'Validez votre email avant de vous connecter. Consultez le lien envoyé à votre adresse.' },
+        { status: 403 }
       )
     }
 
@@ -113,22 +126,20 @@ export async function POST(request: NextRequest) {
     // Réponse JSON pour fetch()
     const response = NextResponse.json({
       user: { id: user.id, email: user.email, firstName: user.firstName, lastName: user.lastName, company: user.company },
-      message: 'Connexion réussie'
+      message: 'Connexion réussie',
     })
     response.cookies.set('auth-token', token, cookieOptions)
     return response
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error)
-    console.error('Erreur lors de la connexion:', message, error)
-    if (error instanceof Error && error.cause) console.error('Cause:', error.cause)
-
     if (error instanceof z.ZodError) {
       return NextResponse.json(
         { error: 'Données invalides', details: error.issues },
         { status: 400 }
       )
     }
-
+    const message = error instanceof Error ? error.message : String(error)
+    console.error('Erreur lors de la connexion:', message, error)
+    if (error instanceof Error && error.cause) console.error('Cause:', error.cause)
     return NextResponse.json(
       { error: 'Erreur interne du serveur' },
       { status: 500 }

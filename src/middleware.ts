@@ -2,8 +2,8 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { jwtVerify } from 'jose'
 
-const publicPages = ['/login', '/register', '/forgot-password', '/reset-password']
-const publicApiRoutes = ['/api/auth/login', '/api/auth/register', '/api/auth/logout', '/api/auth/forgot-password', '/api/auth/reset-password']
+const publicPages = ['/login', '/register', '/forgot-password', '/reset-password', '/confirm-email']
+const publicApiRoutes = ['/api/auth/login', '/api/auth/register', '/api/auth/logout', '/api/auth/forgot-password', '/api/auth/reset-password', '/api/auth/confirm-email', '/api/auth/resend-confirmation']
 
 function isPublicApi(pathname: string) {
   return publicApiRoutes.some((r) => pathname === r || pathname.startsWith(r + '?'))

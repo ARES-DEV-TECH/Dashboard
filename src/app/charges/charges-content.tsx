@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import useSWR from 'swr'
 import { DataTable, Column } from '@/components/ui/data-table'
 import { Button } from '@/components/ui/button'
@@ -182,6 +182,12 @@ export function ChargesContent() {
     setIsDialogOpen(true)
   }
 
+  useEffect(() => {
+    const handler = () => handleAdd()
+    window.addEventListener('shortcut-new', handler)
+    return () => window.removeEventListener('shortcut-new', handler)
+  }, [])
+
   const handleExport = () => {
     const csvData = generateCSV(charges, [
       'expenseDate',
@@ -293,6 +299,8 @@ export function ChargesContent() {
         onEdit={handleEdit}
         onDelete={handleDelete}
         onExport={handleExport}
+        searchPlaceholder="Rechercher une charge..."
+        emptyMessage="Aucune charge. Créez votre première charge."
         virtualized
       />
 

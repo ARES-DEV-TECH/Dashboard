@@ -65,6 +65,7 @@ export function checkRateLimit(
 /** Limites par défaut pour les routes auth (par IP, par fenêtre). */
 export const AUTH_RATE_LIMIT = {
   login: { max: 10, windowMs: 60_000 },           // 10 tentatives / minute
-  forgotPassword: { max: 5, windowMs: 60_000 },  // 5 demandes / minute
-  resetPassword: { max: 5, windowMs: 60_000 },   // 5 soumissions / minute
+  forgotPassword: { max: 5, windowMs: 60_000 },    // 5 demandes / minute
+  resetPassword: { max: 5, windowMs: 60_000 },     // 5 soumissions / minute
+  resendConfirmation: { max: 3, windowMs: 60_000 }, // 3 renvois / minute
 } as const

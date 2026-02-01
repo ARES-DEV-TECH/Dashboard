@@ -10,13 +10,14 @@ Application web de pilotage d’entreprise : clients, articles, ventes, charges,
 - **Ventes** : Facturation, numéros auto, liaison client/service, export CSV.
 - **Charges** : Charges professionnelles, récurrentes ou ponctuelles, liaison service/client, répartition par catégorie.
 - **Paramètres** : Taux URSSAF, TVA, logo entreprise.
-- **Auth** : Inscription, connexion (JWT), mot de passe oublié, réinitialisation.
+- **Auth** : Inscription avec **confirmation par email** (lien « Valider mon compte »), connexion (JWT), mot de passe oublié, réinitialisation, renvoi d’email de confirmation.
 
 ## Stack
 
 - **Frontend** : Next.js 15 (App Router), React 19, TypeScript, Tailwind CSS, shadcn/ui, Recharts, SWR.
 - **Backend** : API Routes Next.js, Prisma, PostgreSQL (Supabase).
-- **Auth** : JWT (cookie httpOnly).
+- **Auth** : JWT (cookie httpOnly), confirmation email à l’inscription, rate limiting (login, forgot-password, resend-confirmation).
+- **Accessibilité** : focus visible au clavier, lien d’évitement « Aller au contenu ».
 - **Desktop** : Electron 38 (optionnel, voir README-ELECTRON.md).
 
 ## Installation
@@ -56,11 +57,20 @@ npm run db:seed
 
 Sans Resend, le lien de réinitialisation est affiché dans l’interface (dev) ou indiqué comme “email non configuré” (prod). Avec Resend configuré, l’email est envoyé automatiquement.
 
+### Tests E2E
+
+Les tests Playwright (`e2e/auth.spec.ts`, `e2e/api-auth.spec.ts`) vérifient les pages auth (login, register, forgot-password) et les réponses API.
+
+- **Première fois** : installer les navigateurs avec `npx playwright install`.
+- Lancer : `npm run test:e2e`. Le serveur dev est démarré automatiquement.
+- **CI (GitHub Actions)** : à chaque push sur `main`/`master`, build + job E2E (Playwright). Pour que les E2E passent en CI, ajouter le secret `DATABASE_URL` (et optionnellement `JWT_SECRET`) dans les paramètres du dépôt. Sans secret, le job E2E peut échouer mais le workflow reste vert (job non bloquant).
+
 ### Performance en dev
 
 - `npm run dev` utilise **Turbopack** pour des compilations et un HMR plus rapides. Le premier chargement d’une page ou d’une API reste plus lent (compilation à la demande).
 - Après connexion, les routes principales et les API sont préchargées (prefetch + warmup) pour limiter la latence au premier clic.
 - En cas de souci avec Turbopack : `npm run dev:webpack`. Pour repartir d’un cache propre : `./scripts/dev-fresh.sh`.
+- Si des erreurs `ENOENT: _buildManifest.js.tmp` apparaissent en dev, supprimer le cache : `rm -rf .next` puis relancer `npm run dev` (ou `./scripts/dev-fresh.sh`).
 
 ## Commandes
 
@@ -74,6 +84,8 @@ Sans Resend, le lien de réinitialisation est affiché dans l’interface (dev) 
 | `npm run db:seed` | Peupler les paramètres par défaut |
 | `npm run db:studio` | Ouvrir Prisma Studio |
 | `npm run db:reset` | Réinitialiser la BDD (schéma + seed) |
+| `npm run test:e2e` | Lancer les tests E2E (Playwright ; le serveur dev est démarré automatiquement) |
+| `npm run test:e2e:ui` | Lancer Playwright en mode UI |
 | `npm run electron:dev` | Lancer l’app en mode Electron (voir README-ELECTRON.md) |
 
 ## Structure du projet

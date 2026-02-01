@@ -12,14 +12,15 @@ datasource db {
 
 // Modèle utilisateur pour l'authentification
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  password  String   // Hashé avec bcrypt
-  firstName String?
-  lastName  String?
-  company   String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id              String    @id @default(cuid())
+  email           String    @unique
+  password        String    // Hashé avec bcrypt
+  firstName       String?
+  lastName        String?
+  company         String?
+  emailVerifiedAt DateTime? // null = compte en attente de confirmation email
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
   
   // Relations avec les données métier
   clients   Client[]

@@ -20,6 +20,8 @@ function LoginContent() {
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [resendLoading, setResendLoading] = useState(false)
+  const [showResendConfirmation, setShowResendConfirmation] = useState(false)
   const searchParams = useSearchParams()
   const router = useRouter()
   const { mutate } = useSWRConfig()
@@ -41,9 +43,19 @@ function LoginContent() {
 
   useEffect(() => {
     const err = searchParams.get('error')
+    const verified = searchParams.get('verified')
+    if (verified === '1') {
+      toast.success('Connexion', { description: 'Compte activé. Vous pouvez vous connecter.' })
+    }
     if (err === 'invalid_credentials') {
       const msg = 'Email ou mot de passe incorrect'
       setError(msg)
+      toast.error('Connexion', { description: msg })
+    }
+    if (err === 'email_not_verified') {
+      const msg = 'Validez votre email avant de vous connecter. Consultez le lien envoyé à votre adresse.'
+      setError(msg)
+      setShowResendConfirmation(true)
       toast.error('Connexion', { description: msg })
     }
   }, [searchParams])
@@ -62,14 +74,22 @@ function LoginContent() {
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     setError('')
+    setShowResendConfirmation(false)
     setLoading(true)
     try {
-      const ok = await doLogin(email.trim(), password, rememberMe)
-      if (ok) {
+      const result = await doLogin(email.trim(), password, rememberMe)
+      if (result === true) {
         prefetchAppRoutes()
         warmupApis()
         preloadSwrCache(mutate)
         router.replace('/dashboard')
+        return
+      }
+      if (result === 'email_not_verified') {
+        const msg = 'Validez votre email avant de vous connecter. Consultez le lien envoyé à votre adresse.'
+        setError(msg)
+        setShowResendConfirmation(true)
+        toast.error('Connexion', { description: msg })
         return
       }
       const msg = 'Email ou mot de passe incorrect'
@@ -81,6 +101,29 @@ function LoginContent() {
       toast.error('Connexion', { description: msg })
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleResendConfirmation = async () => {
+    if (!email?.trim()) return
+    setResendLoading(true)
+    try {
+      const res = await fetch('/api/auth/resend-confirmation', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim() }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (res.ok) {
+        toast.success('Connexion', { description: data.message || 'Un nouveau lien vous a été envoyé.' })
+      } else {
+        toast.error('Connexion', { description: data.error || 'Erreur lors de l\'envoi.' })
+      }
+    } catch {
+      toast.error('Connexion', { description: 'Erreur lors de l\'envoi.' })
+    } finally {
+      setResendLoading(false)
     }
   }
 
@@ -165,8 +208,18 @@ function LoginContent() {
               </div>
             </div>
             {error && (
-              <div className="rounded-lg p-3 text-sm text-center bg-destructive/10 border border-destructive/30 text-destructive">
-                {error}
+              <div className="rounded-lg p-3 text-sm text-center bg-destructive/10 border border-destructive/30 text-destructive space-y-2">
+                <p>{error}</p>
+                {showResendConfirmation && (
+                  <button
+                    type="button"
+                    onClick={handleResendConfirmation}
+                    disabled={resendLoading}
+                    className="text-primary font-medium hover:underline underline-offset-2 disabled:opacity-50"
+                  >
+                    {resendLoading ? 'Envoi...' : 'Renvoyer l\'email de confirmation'}
+                  </button>
+                )}
               </div>
             )}
             <button

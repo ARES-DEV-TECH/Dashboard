@@ -78,13 +78,14 @@ export default function RegisterPage() {
 
       const data = await response.json()
 
-      if (response.ok) {
+      if (response.ok || response.status === 201) {
         setSuccess(true)
-        toast.success('Inscription', { description: 'Compte créé. Redirection...' })
+        const msg = data.message || 'Un email de confirmation vous a été envoyé.'
+        toast.success('Inscription', { description: msg })
         setTimeout(() => {
-          router.push('/dashboard')
+          router.push('/login')
           router.refresh()
-        }, 1500)
+        }, 3000)
       } else {
         const msg = data.error || 'Erreur lors de l\'inscription'
         setError(msg)
@@ -119,8 +120,9 @@ export default function RegisterPage() {
             <div className="mx-auto w-16 h-16 rounded-full flex items-center justify-center mb-6" style={{ backgroundColor: '#667eea' }}>
               <CheckCircle className="w-8 h-8" style={{ color: '#ffffff' }} />
             </div>
-            <h2 className="text-2xl font-bold mb-2" style={{ color: '#fafafa' }}>Compte créé !</h2>
-            <p className="mb-6" style={{ color: '#a3a3a3' }}>Redirection vers votre tableau de bord...</p>
+            <h2 className="text-2xl font-bold mb-2" style={{ color: '#fafafa' }}>Inscription enregistrée</h2>
+            <p className="mb-6" style={{ color: '#a3a3a3' }}>Un email de confirmation vous a été envoyé. Cliquez sur le lien pour activer votre compte, puis connectez-vous.</p>
+            <p className="text-sm mb-3" style={{ color: '#71717a' }}>Redirection vers la page de connexion...</p>
             <div className="w-full rounded-full h-2" style={{ backgroundColor: '#262626' }}>
               <div className="rounded-full h-2 animate-pulse" style={{ backgroundColor: '#667eea' }}></div>
             </div>

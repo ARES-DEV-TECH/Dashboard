@@ -42,6 +42,8 @@ interface DataTableProps<T extends Record<string, unknown>> {
   onDelete?: (row: T) => void
   onGenerateQuote?: (row: T) => void
   onGenerateInvoice?: (row: T) => void
+  /** Message affiché quand la liste est vide (avec CTA Créer si onAdd fourni). */
+  emptyMessage?: string
   /** Active la virtualisation pour les listes > ~200 lignes (scroll fluide). */
   virtualized?: boolean
   className?: string
@@ -61,6 +63,7 @@ export function DataTable<T extends Record<string, unknown>>({
   onDelete,
   onGenerateQuote,
   onGenerateInvoice,
+  emptyMessage,
   virtualized = false,
   className
 }: DataTableProps<T>) {
@@ -227,8 +230,16 @@ export function DataTable<T extends Record<string, unknown>>({
           >
             {paginatedData.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={columns.length + (onEdit || onDelete || onGenerateQuote || onGenerateInvoice ? 1 : 0)} className="text-center py-8">
-                  Aucune donnée trouvée
+                <TableCell colSpan={columns.length + (onEdit || onDelete || onGenerateQuote || onGenerateInvoice ? 1 : 0)} className="text-center py-10">
+                  <div className="flex flex-col items-center gap-3">
+                    <p className="text-muted-foreground">{emptyMessage ?? 'Aucune donnée'}</p>
+                    {onAdd && (
+                      <Button size="sm" onClick={onAdd}>
+                        <Plus className="h-4 w-4 mr-2" />
+                        Créer
+                      </Button>
+                    )}
+                  </div>
                 </TableCell>
               </TableRow>
             ) : useVirtual ? (
@@ -404,21 +415,26 @@ export function DataTable<T extends Record<string, unknown>>({
               <ChevronLeft className="h-4 w-4" aria-hidden />
             </Button>
             <div className="flex items-center space-x-1">
-              {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                const page = i + 1
-                return (
-                  <Button
-                    key={page}
-                    variant={currentPage === page ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => setCurrentPage(page)}
-                  >
-                    {page}
-                  </Button>
-                )
-              })}
+              {(() => {
+                const maxButtons = Math.min(5, totalPages)
+                const start = Math.max(1, Math.min(currentPage - Math.floor(maxButtons / 2), totalPages - maxButtons + 1))
+                return Array.from({ length: maxButtons }, (_, i) => {
+                  const page = start + i
+                  return (
+                    <Button
+                      key={page}
+                      variant={currentPage === page ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => setCurrentPage(page)}
+                      aria-label={`Page ${page}`}
+                    >
+                      {page}
+                    </Button>
+                  )
+                })
+              })()}
             </div>
-<Button
+            <Button
               variant="outline"
               size="sm"
               onClick={() => setCurrentPage(currentPage + 1)}

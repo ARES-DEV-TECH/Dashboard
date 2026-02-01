@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
-import { hashPassword, generateToken } from '@/lib/auth'
+import { hashPassword, generateEmailVerificationToken } from '@/lib/auth'
+import { escapeHtml } from '@/lib/utils'
 import { z } from 'zod'
 
 const registerSchema = z.object({
@@ -14,11 +15,13 @@ const registerSchema = z.object({
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { email, password, firstName, lastName, company } = registerSchema.parse(body)
+    const parsed = registerSchema.parse(body)
+    const email = String(parsed.email).trim().toLowerCase()
+    const { password, firstName, lastName, company } = parsed
 
     // Vérifier si l'utilisateur existe déjà
     const existingUser = await prisma.user.findUnique({
-      where: { email }
+      where: { email },
     })
 
     if (existingUser) {
@@ -47,15 +50,6 @@ export async function POST(request: NextRequest) {
       }
     })
 
-    // Générer le token
-    const token = generateToken({
-      id: user.id,
-      email: user.email,
-      firstName: user.firstName ?? undefined,
-      lastName: user.lastName ?? undefined,
-      company: user.company ?? undefined,
-    })
-
     // Créer les paramètres par défaut pour l'utilisateur
     await prisma.parametresEntreprise.createMany({
       data: [
@@ -69,30 +63,37 @@ export async function POST(request: NextRequest) {
       ]
     })
 
-    // Retourner la réponse avec le token en cookie
-    const response = NextResponse.json({
-      user,
-      message: 'Utilisateur créé avec succès'
-    })
+    // Email de confirmation : lien pour valider le compte (non bloquant)
+    const { sendEmail } = await import('@/lib/email')
+    const safeFirstName = firstName?.trim()
+    const greeting = safeFirstName ? `Bonjour ${escapeHtml(safeFirstName)},` : 'Bonjour,'
+    const baseUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : request.nextUrl.origin
+    const verificationToken = generateEmailVerificationToken(user.id, user.email)
+    const confirmUrl = `${baseUrl}/confirm-email?token=${encodeURIComponent(verificationToken)}`
+    sendEmail({
+      to: email,
+      subject: 'Validez votre compte ARES Dashboard',
+      html: `
+        <p>${greeting}</p>
+        <p>Vous venez de créer un compte sur ARES Dashboard. Pour l'activer et pouvoir vous connecter, cliquez sur le lien ci-dessous.</p>
+        <p><a href="${confirmUrl}" style="color:#6366f1;">Valider mon compte</a></p>
+        <p>Ce lien expire dans 24 heures. Si vous n'êtes pas à l'origine de cette inscription, ignorez cet email.</p>
+        <p>— L'équipe ARES Dashboard</p>
+      `,
+    }).catch(() => {})
 
-    response.cookies.set('auth-token', token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: 7 * 24 * 60 * 60 // 7 jours
-    })
-
-    return response
+    // Pas de cookie : l'utilisateur doit d'abord valider son email
+    return NextResponse.json({
+      message: 'Un email de confirmation vous a été envoyé. Cliquez sur le lien pour activer votre compte.',
+    }, { status: 201 })
   } catch (error) {
-    console.error('Erreur lors de l\'inscription:', error)
-    
     if (error instanceof z.ZodError) {
       return NextResponse.json(
         { error: 'Données invalides', details: error.issues },
         { status: 400 }
       )
     }
-
+    console.error('Erreur lors de l\'inscription:', error)
     return NextResponse.json(
       { error: 'Erreur interne du serveur' },
       { status: 500 }

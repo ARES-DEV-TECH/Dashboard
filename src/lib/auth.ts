@@ -58,6 +58,25 @@ export function verifyResetToken(token: string): { email: string } | null {
   }
 }
 
+/** Token pour confirmation d'email (valide 24 h) */
+export function generateEmailVerificationToken(userId: string, email: string): string {
+  return jwt.sign(
+    { userId, email, purpose: 'email-verification' },
+    getJwtSecret(),
+    { expiresIn: '24h' } as jwt.SignOptions
+  )
+}
+
+export function verifyEmailVerificationToken(token: string): { userId: string; email: string } | null {
+  try {
+    const payload = jwt.verify(token, getJwtSecret()) as { userId?: string; email?: string; purpose?: string }
+    if (payload?.purpose !== 'email-verification' || !payload?.userId || !payload?.email) return null
+    return { userId: payload.userId, email: payload.email }
+  } catch {
+    return null
+  }
+}
+
 export async function getCurrentUser(request: NextRequest): Promise<UserPayload | null> {
   try {
     // Priorité à l'en-tête x-user-id défini par le middleware (cookie déjà vérifié côté Edge)

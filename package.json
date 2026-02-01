@@ -8,6 +8,8 @@
   "author": "ARES Team",
   "scripts": {
     "postinstall": "prisma generate",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
     "dev": "next dev --turbo",
     "dev:webpack": "next dev --webpack",
     "build": "next build",
@@ -46,6 +48,7 @@
     "jspdf": "^3.0.3",
     "lucide-react": "^0.546.0",
     "next": "15.5.9",
+    "nodemailer": "^6.9.16",
     "papaparse": "^5.5.3",
     "prisma": "^6.17.1",
     "react": "19.1.0",
@@ -57,8 +60,10 @@
     "zod": "^4.1.12"
   },
   "devDependencies": {
+    "@playwright/test": "^1.58.1",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
+    "@types/nodemailer": "^6.4.16",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "concurrently": "^9.2.1",

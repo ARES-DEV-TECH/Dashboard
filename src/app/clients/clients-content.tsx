@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import useSWR from 'swr'
 import { DataTable, Column } from '@/components/ui/data-table'
 import { Button } from '@/components/ui/button'
@@ -130,6 +130,12 @@ export function ClientsContent() {
     setIsDialogOpen(true)
   }
 
+  useEffect(() => {
+    const handler = () => handleAdd()
+    window.addEventListener('shortcut-new', handler)
+    return () => window.removeEventListener('shortcut-new', handler)
+  }, [])
+
   const columns: Column<Client>[] = [
     {
       key: 'firstName',
@@ -228,6 +234,7 @@ export function ClientsContent() {
         onDelete={handleDelete}
         onExport={handleExport}
         searchPlaceholder="Rechercher un client..."
+        emptyMessage="Aucun client. Créez votre premier client."
         virtualized
       />
 

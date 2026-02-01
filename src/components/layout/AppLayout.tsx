@@ -6,10 +6,11 @@ import { usePathname } from 'next/navigation'
 import { Logo } from '@/components/logo'
 import { NavLinks, UserMenu } from '@/components/navigation'
 import { Breadcrumbs } from '@/components/layout/Breadcrumbs'
+import { KeyboardShortcuts } from '@/components/KeyboardShortcuts'
 import { Button } from '@/components/ui/button'
 import { Menu, X } from 'lucide-react'
 
-const AUTH_PATHS = ['/login', '/register']
+const AUTH_PATHS = ['/login', '/register', '/forgot-password', '/reset-password', '/confirm-email']
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
@@ -41,9 +42,11 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     }
   }, [drawerOpen])
 
-  if (isAuth) return <>{children}</>
+  if (isAuth) return <div id="main-content" tabIndex={-1}>{children}</div>
 
   return (
+    <>
+      <KeyboardShortcuts />
     <div className="flex flex-col lg:flex-row h-dvh min-h-screen overflow-hidden bg-background text-foreground">
       {/* Mobile: barre fixe */}
       <header
@@ -120,8 +123,10 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
       {/* Contenu principal : seul cette zone défile */}
       <main
+        id="main-content"
         className="flex-1 min-w-0 min-h-0 flex flex-col pt-14 lg:pt-0 lg:overflow-hidden"
         role="main"
+        tabIndex={-1}
       >
         <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-4 py-4 sm:px-6 sm:py-6">
           <div className="mx-auto max-w-6xl w-full">
@@ -131,6 +136,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         </div>
       </main>
     </div>
+    </>
   )
 }
 
@@ -152,7 +158,10 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
           <NavLinks />
         </nav>
       </div>
-      <footer className="sidebar-region-footer shrink-0 pt-4 border-t border-border/80 px-4">
+      <footer className="sidebar-region-footer shrink-0 pt-4 border-t border-border/80 px-4 space-y-3">
+        <p className="text-xs text-sidebar-foreground/50 px-1" title="Raccourcis clavier">
+          D · C · A · V · H · P · N
+        </p>
         <UserMenu />
       </footer>
     </div>

@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { prisma } from '@/lib/db'
 import { generateResetToken } from '@/lib/auth'
 import { getClientIdentifier, checkRateLimit, AUTH_RATE_LIMIT } from '@/lib/rate-limit'
+import { escapeHtml } from '@/lib/utils'
 
 const schema = z.object({ email: z.string().email('Email invalide') })
 
@@ -23,7 +24,10 @@ export async function POST(request: NextRequest) {
     const { email } = schema.parse(body)
     const trimmedEmail = email.trim().toLowerCase()
 
-    const user = await prisma.user.findUnique({ where: { email: trimmedEmail } })
+    const user = await prisma.user.findUnique({
+      where: { email: trimmedEmail },
+      select: { id: true, firstName: true },
+    })
     if (!user) {
       return NextResponse.json({ message: 'Si un compte existe avec cet email, vous recevrez un lien de réinitialisation.' }, { status: 200 })
     }
@@ -34,38 +38,25 @@ export async function POST(request: NextRequest) {
       : request.nextUrl.origin
     const resetUrl = `${baseUrl}/reset-password?token=${encodeURIComponent(token)}`
 
-    const resendApiKey = process.env.RESEND_API_KEY
-    if (resendApiKey) {
-      const fromEmail = process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev'
-      const res = await fetch('https://api.resend.com/emails', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${resendApiKey}`,
-        },
-        body: JSON.stringify({
-          from: fromEmail,
-          to: trimmedEmail,
-          subject: 'Réinitialisation de votre mot de passe - ARES Dashboard',
-          html: `
-            <p>Bonjour,</p>
-            <p>Vous avez demandé une réinitialisation de mot de passe.</p>
-            <p><a href="${resetUrl}" style="color:#6366f1;">Réinitialiser mon mot de passe</a></p>
-            <p>Ce lien expire dans 1 heure. Si vous n'êtes pas à l'origine de cette demande, ignorez cet email.</p>
-            <p>— ARES Dashboard</p>
-          `,
-        }),
-      })
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}))
-        console.error('Resend error:', res.status, err)
-      }
-    }
+    const { sendEmail, isEmailConfigured } = await import('@/lib/email')
+    const safeFirstName = user.firstName?.trim()
+    const greeting = safeFirstName ? `Bonjour ${escapeHtml(safeFirstName)},` : 'Bonjour,'
+    await sendEmail({
+      to: trimmedEmail,
+      subject: 'Réinitialisation de votre mot de passe - ARES Dashboard',
+      html: `
+        <p>${greeting}</p>
+        <p>Vous avez demandé une réinitialisation de mot de passe.</p>
+        <p><a href="${resetUrl}" style="color:#6366f1;">Réinitialiser mon mot de passe</a></p>
+        <p>Ce lien expire dans 1 heure. Si vous n'êtes pas à l'origine de cette demande, ignorez cet email.</p>
+        <p>— ARES Dashboard</p>
+      `,
+    })
 
     const json: { message: string; resetLink?: string; emailNotConfigured?: boolean } = {
       message: 'Si un compte existe avec cet email, vous recevrez un lien de réinitialisation.',
     }
-    if (user && !resendApiKey) {
+    if (user && !isEmailConfigured()) {
       json.resetLink = resetUrl
       if (process.env.NODE_ENV === 'production') json.emailNotConfigured = true
     }
