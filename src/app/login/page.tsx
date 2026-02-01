@@ -5,6 +5,7 @@ import { useSearchParams, useRouter } from 'next/navigation'
 import { Logo } from '@/components/logo'
 import { Input } from '@/components/ui/input'
 import { useAuth } from '@/components/auth-provider'
+import { warmupApis } from '@/lib/warmup-apis'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -24,6 +25,13 @@ function LoginContent() {
 
   useEffect(() => {
     if (!authLoading && user) {
+      router.prefetch('/dashboard')
+      router.prefetch('/clients')
+      router.prefetch('/articles')
+      router.prefetch('/sales')
+      router.prefetch('/charges')
+      router.prefetch('/settings')
+      warmupApis()
       router.replace('/dashboard')
     }
   }, [authLoading, user, router])
@@ -39,6 +47,15 @@ function LoginContent() {
 
   const { login: doLogin } = useAuth()
 
+  const prefetchAppRoutes = () => {
+    router.prefetch('/dashboard')
+    router.prefetch('/clients')
+    router.prefetch('/articles')
+    router.prefetch('/sales')
+    router.prefetch('/charges')
+    router.prefetch('/settings')
+  }
+
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     setError('')
@@ -46,6 +63,8 @@ function LoginContent() {
     try {
       const ok = await doLogin(email.trim(), password, rememberMe)
       if (ok) {
+        prefetchAppRoutes()
+        warmupApis()
         router.replace('/dashboard')
         return
       }

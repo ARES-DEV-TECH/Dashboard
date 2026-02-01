@@ -56,11 +56,18 @@ npm run db:seed
 
 Sans Resend, le lien de réinitialisation est affiché dans l’interface (dev) ou indiqué comme “email non configuré” (prod). Avec Resend configuré, l’email est envoyé automatiquement.
 
+### Performance en dev
+
+- `npm run dev` utilise **Turbopack** pour des compilations et un HMR plus rapides. Le premier chargement d’une page ou d’une API reste plus lent (compilation à la demande).
+- Après connexion, les routes principales et les API sont préchargées (prefetch + warmup) pour limiter la latence au premier clic.
+- En cas de souci avec Turbopack : `npm run dev:webpack`. Pour repartir d’un cache propre : `./scripts/dev-fresh.sh`.
+
 ## Commandes
 
 | Commande | Description |
 |----------|-------------|
-| `npm run dev` | Serveur de développement |
+| `npm run dev` | Serveur de développement (Turbopack, compilations plus rapides) |
+| `npm run dev:webpack` | Dev avec Webpack si besoin de compatibilité |
 | `npm run build` | Build de production |
 | `npm run start` | Démarrer en production |
 | `npm run db:push` | Synchroniser le schéma Prisma avec la BDD |
