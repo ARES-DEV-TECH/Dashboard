@@ -248,22 +248,26 @@ export async function GET(request: NextRequest) {
       calculatedTotal: item.recurring + item.oneTime
     }))
 
-    return NextResponse.json({
-      totalHt: totalCharges.totalHt,
-      totalTtc: totalCharges.totalTtc,
-      breakdown: recurringBreakdown,
-      totals: {
+    return NextResponse.json(
+      {
         totalHt: totalCharges.totalHt,
         totalTtc: totalCharges.totalTtc,
-        breakdown: totalCharges.breakdown
+        breakdown: recurringBreakdown,
+        totals: {
+          totalHt: totalCharges.totalHt,
+          totalTtc: totalCharges.totalTtc,
+          breakdown: totalCharges.breakdown
+        },
+        summary: {
+          totalCategories: breakdown.length,
+          totalVendors: new Set(charges.map(c => c.vendor).filter(Boolean)).size,
+          averageChargePerCategory: breakdown.length > 0
+            ? breakdown.reduce((sum, item) => sum + item.total, 0) / breakdown.length
+            : 0
+        }
       },
-      summary: {
-        totalCategories: breakdown.length,
-        totalVendors: new Set(charges.map(c => c.vendor).filter(Boolean)).size,
-        averageChargePerCategory: breakdown.length > 0 ? 
-          breakdown.reduce((sum, item) => sum + item.total, 0) / breakdown.length : 0
-      }
-    })
+      { headers: { 'Cache-Control': 'private, max-age=60' } }
+    )
   } catch (error) {
     console.error('Error fetching charges breakdown:', error)
     return NextResponse.json(

@@ -17,75 +17,51 @@ export async function GET(request: NextRequest) {
     const startDate = new Date(year, 0, 1) // 1er janvier
     const endDate = new Date(year, 11, 31) // 31 décembre
 
-    // Récupérer les ventes de l'année - uniquement celles de l'utilisateur connecté
-    const sales = await prisma.sale.findMany({
-      where: {
-        userId: user.id,
-        year,
-        saleDate: {
-          gte: startDate,
-          lte: endDate
+    // Récupérer ventes, charges, services et clients en parallèle (réduit le temps de réponse)
+    const [sales, charges, services, clients] = await Promise.all([
+      prisma.sale.findMany({
+        where: {
+          userId: user.id,
+          year,
+          saleDate: { gte: startDate, lte: endDate }
+        },
+        select: {
+          saleDate: true,
+          caHt: true,
+          totalTtc: true,
+          serviceName: true,
+          clientName: true,
+          invoiceNo: true
         }
-      },
-      select: {
-        saleDate: true,
-        caHt: true,
-        totalTtc: true,
-        serviceName: true,
-        clientName: true,
-        invoiceNo: true
-      }
-    })
-
-    // Récupérer les charges (filtrées par utilisateur)
-    const charges = await prisma.charge.findMany({
-      where: {
-        userId: user.id,
-        OR: [
-          // Charges ponctuelles dans l'année
-          {
-            recurring: false,
-            year,
-            expenseDate: {
-              gte: startDate,
-              lte: endDate
-            }
-          },
-          // Toutes les charges récurrentes
-          {
-            recurring: true
-          }
-        ]
-      },
-      select: {
-        expenseDate: true,
-        amount: true,
-        recurring: true,
-        recurringType: true,
-        linkedService: true,
-        linkedClient: true,
-        linkedSaleId: true,
-        year: true
-      }
-    })
-
-    // Récupérer les services pour les liaisons (filtrés par utilisateur)
-    const services = await prisma.article.findMany({
-      where: { userId: user.id },
-      select: {
-        serviceName: true,
-        priceHt: true
-      }
-    })
-
-    // Récupérer les clients pour les liaisons (filtrés par utilisateur)
-    const clients = await prisma.client.findMany({
-      where: { userId: user.id },
-      select: {
-        clientName: true,
-        email: true
-      }
-    })
+      }),
+      prisma.charge.findMany({
+        where: {
+          userId: user.id,
+          OR: [
+            { recurring: false, year, expenseDate: { gte: startDate, lte: endDate } },
+            { recurring: true }
+          ]
+        },
+        select: {
+          expenseDate: true,
+          amount: true,
+          recurring: true,
+          recurringType: true,
+          linkedService: true,
+          linkedClient: true,
+          linkedSaleId: true,
+          year: true
+        }
+      }),
+      prisma.article.findMany({
+        where: { userId: user.id },
+        select: { serviceName: true, priceHt: true }
+      }),
+      prisma.client.findMany({
+        where: { userId: user.id },
+        select: { clientName: true, email: true }
+      })
+    ])
 
     // Créer les données mensuelles
     const monthlyData = []
@@ -230,22 +206,25 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    return NextResponse.json({
-      year,
-      monthlyEvolution: monthlyData,
-      monthlyServiceEvolution: monthlyServiceData,
-      globalKpis: {
-        totalSales: totalSalesHt,
-        totalCharges: totalChargesAmount,
-        result: totalSalesHt - totalChargesAmount,
-        linkedSalesCount: totalLinkedSales,
-        linkedChargesCount: totalLinkedCharges,
-        crossLinkedCount: totalCrossLinked,
-        linkingRate: totalLinkedSales > 0 ? ((totalLinkedSales + totalLinkedCharges) / (sales.length + charges.length) * 100) : 0
+    return NextResponse.json(
+      {
+        year,
+        monthlyEvolution: monthlyData,
+        monthlyServiceEvolution: monthlyServiceData,
+        globalKpis: {
+          totalSales: totalSalesHt,
+          totalCharges: totalChargesAmount,
+          result: totalSalesHt - totalChargesAmount,
+          linkedSalesCount: totalLinkedSales,
+          linkedChargesCount: totalLinkedCharges,
+          crossLinkedCount: totalCrossLinked,
+          linkingRate: totalLinkedSales > 0 ? ((totalLinkedSales + totalLinkedCharges) / (sales.length + charges.length) * 100) : 0
+        },
+        serviceAnalysis,
+        clientAnalysis
       },
-      serviceAnalysis,
-      clientAnalysis
-    })
+      { headers: { 'Cache-Control': 'private, max-age=60' } }
+    )
 
   } catch (error) {
     console.error('Error fetching dashboard evolution:', error)

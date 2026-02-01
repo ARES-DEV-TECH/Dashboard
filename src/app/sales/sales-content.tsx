@@ -1,6 +1,7 @@
 "use client"
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
+import useSWR from 'swr'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -8,21 +9,25 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { generateCSV, downloadCSV } from '@/lib/csv'
-import { generateInvoiceNumber } from '@/lib/math'
-import { generateQuotePDF, generateInvoicePDF } from '@/lib/pdf-generator-v2'
 import { getDefaultTvaRate } from '@/lib/settings'
 import { electronFetch } from '@/lib/electron-api'
+import { toast } from 'sonner'
+import { safeErrorMessage } from '@/lib/utils'
+import { SWR_KEYS, fetchClients, fetchArticles, fetchSales, fetchCharges } from '@/lib/swr-fetchers'
 import { Plus } from 'lucide-react'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Skeleton } from '@/components/ui/skeleton'
 
 export function SalesContent() {
-  const [sales, setSales] = useState([] as any[])
-  const [clients, setClients] = useState([] as any[])
-  const [articles, setArticles] = useState([] as any[])
-  const [charges, setCharges] = useState([] as any[])
-  const [loading, setLoading] = useState(true)
-  
+  const { data: salesData, error: salesError, isLoading: salesLoading, mutate: mutateSales } = useSWR(SWR_KEYS.sales, fetchSales, { revalidateOnFocus: false, dedupingInterval: 5000 })
+  const { data: clients = [], isLoading: clientsLoading } = useSWR(SWR_KEYS.clients, fetchClients, { revalidateOnFocus: false, dedupingInterval: 5000 })
+  const { data: articles = [], isLoading: articlesLoading } = useSWR(SWR_KEYS.articles, fetchArticles, { revalidateOnFocus: false, dedupingInterval: 5000 })
+  const { data: chargesData, isLoading: chargesLoading, mutate: mutateCharges } = useSWR(SWR_KEYS.charges, fetchCharges, { revalidateOnFocus: false, dedupingInterval: 5000 })
+
+  const sales = salesData?.sales ?? []
+  const charges = chargesData?.charges ?? []
+  const loading = salesLoading || clientsLoading || articlesLoading || chargesLoading
+
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingSale, setEditingSale] = useState(null as any)
   const [formData, setFormData] = useState({
@@ -41,39 +46,6 @@ export function SalesContent() {
         ? prev.linkedCharges.filter(i => i !== id)
         : [...prev.linkedCharges, id]
     }))
-  }
-
-  const loadSales = async () => {
-    try {
-      const res = await electronFetch('/api/sales')
-      if (res.ok) setSales((await res.json()).sales || [])
-    } catch (e) { console.error('Ventes:', e) }
-  }
-
-  const loadClients = async () => {
-    try {
-      const res = await electronFetch('/api/clients')
-      if (res.ok) setClients(await res.json() || [])
-    } catch (e) { console.error('Clients:', e) }
-  }
-
-  const loadArticles = async () => {
-    try {
-      const res = await electronFetch('/api/articles')
-      if (res.ok) {
-        const data = await res.json()
-        setArticles(data.articles || data || [])
-      }
-    } catch (e) {
-      console.error('Chargement articles:', e)
-    }
-  }
-
-  const loadCharges = async () => {
-    try {
-      const res = await electronFetch('/api/charges?limit=500')
-      if (res.ok) setCharges((await res.json()).charges || [])
-    } catch (e) { console.error('Charges:', e) }
   }
 
   const loadServiceOptions = async (serviceName: string) => {
@@ -110,25 +82,22 @@ export function SalesContent() {
     )
   }
 
-  useEffect(() => {
-    const loadData = async () => {
-      setLoading(true)
-      try {
-        await Promise.all([loadSales(), loadClients(), loadArticles(), loadCharges()])
-      } catch (error) {
-        console.error('Erreur lors du chargement:', error)
-      } finally {
-        setLoading(false)
-      }
-    }
-    loadData()
-  }, [])
-
-  const handleAdd = () => {
+  const handleAdd = async () => {
     setEditingSale(null)
+    const today = new Date().toISOString().split('T')[0]
+    let nextNo = `F${new Date().getFullYear()}-000001`
+    try {
+      const res = await electronFetch('/api/sales/next-invoice-no')
+      if (res.ok) {
+        const data = await res.json()
+        if (data.nextInvoiceNo) nextNo = data.nextInvoiceNo
+      }
+    } catch {
+      // garder le fallback
+    }
     setFormData({
-      saleDate: new Date().toISOString().split('T')[0],
-      invoiceNo: generateInvoiceNumber(),
+      saleDate: today,
+      invoiceNo: nextNo,
       clientName: '',
       serviceName: '',
       quantity: 1,
@@ -209,7 +178,7 @@ export function SalesContent() {
     if (formData.unitLabel === 'heure') {
       const hours = parseFloat(hoursInput)
       if (hoursInput.trim() === '' || isNaN(hours) || hours < 0.5) {
-        alert('Veuillez saisir le nombre d\'heures (minimum 0,5).')
+        toast.error('Ventes', { description: 'Veuillez saisir le nombre d\'heures (minimum 0,5).' })
         return
       }
       setFormData(prev => ({ ...prev, quantity: hours }))
@@ -239,10 +208,31 @@ export function SalesContent() {
       year: new Date(formData.saleDate).getFullYear()
     }
 
+    const url = editingSale ? `/api/sales/${editingSale.invoiceNo}` : '/api/sales'
+    const method = editingSale ? 'PUT' : 'POST'
+    const previousSales = [...sales]
+
+    const optimisticSale = {
+      invoiceNo: formData.invoiceNo,
+      saleDate: formData.saleDate,
+      clientName: formData.clientName,
+      serviceName: formData.serviceName,
+      quantity: quantityToSave,
+      unitPriceHt: formData.unitPriceHt,
+      caHt: totalHt,
+      totalTtc: totalHt * 1.2,
+      tvaAmount: totalHt * 0.2,
+    }
+    if (editingSale) {
+      const optimistic = sales.map(s =>
+        s.invoiceNo === editingSale.invoiceNo ? { ...s, ...optimisticSale } : s
+      )
+      mutateSales({ sales: optimistic, pagination: salesData?.pagination }, { revalidate: false })
+    } else {
+      mutateSales({ sales: [...sales, optimisticSale], pagination: salesData?.pagination }, { revalidate: false })
+    }
+
     try {
-      const url = editingSale ? `/api/sales/${editingSale.invoiceNo}` : '/api/sales'
-      const method = editingSale ? 'PUT' : 'POST'
-      
       const response = await electronFetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
@@ -252,15 +242,13 @@ export function SalesContent() {
       if (response.ok) {
         const result = await response.json()
         const saleId = result.sale?.invoiceNo || editingSale?.invoiceNo
-        
+
         try {
           if (saleId) {
-            // Charges actuellement liées à cette vente (en édition)
             const previouslyLinkedIds = charges
               .filter(c => c.linkedSaleId === saleId)
               .map(c => String(c.id))
             const toUnlink = previouslyLinkedIds.filter(id => !formData.linkedCharges.includes(id))
-            // Délier les charges décochées
             await Promise.all(
               toUnlink.map(chargeId =>
                 electronFetch(`/api/charges/${chargeId}`, {
@@ -270,7 +258,6 @@ export function SalesContent() {
                 })
               )
             )
-            // Lier les charges cochées
             await Promise.all(
               formData.linkedCharges.map(chargeId =>
                 electronFetch(`/api/charges/${chargeId}`, {
@@ -284,19 +271,20 @@ export function SalesContent() {
         } catch (error) {
           console.error('Erreur lors de la liaison des charges:', error)
         }
-        
-        await loadSales()
-        await loadCharges() // Recharger les charges pour voir les liens
-        await loadClients() // Recharger les clients au cas où
+
+        await Promise.all([mutateSales(), mutateCharges()])
         setIsDialogOpen(false)
         setEditingSale(null)
+        toast.success('Ventes', { description: editingSale ? 'Vente mise à jour.' : 'Vente enregistrée.' })
       } else {
+        mutateSales({ sales: previousSales, pagination: salesData?.pagination }, { revalidate: false })
         const error = await response.json()
-        alert(`Erreur: ${error.message || 'Erreur lors de la sauvegarde'}`)
+        toast.error('Ventes', { description: (error?.error ?? error?.message) || 'Erreur lors de la sauvegarde' })
       }
     } catch (error) {
       console.error('Erreur lors de la sauvegarde:', error)
-      alert('Erreur lors de la sauvegarde')
+      mutateSales({ sales: previousSales, pagination: salesData?.pagination }, { revalidate: false })
+      toast.error('Ventes', { description: 'Erreur lors de la sauvegarde' })
     }
   }
 
@@ -304,22 +292,27 @@ export function SalesContent() {
     const invoiceNo = sale?.invoiceNo
     if (!invoiceNo) {
       console.error('handleDelete: invoiceNo manquant', sale)
-      alert('Impossible de supprimer : numéro de facture manquant.')
+      toast.error('Ventes', { description: 'Impossible de supprimer : numéro de facture manquant.' })
       return
     }
     if (!confirm('Êtes-vous sûr de vouloir supprimer cette vente ?')) return
+    const previousSales = [...sales]
+    mutateSales({ sales: sales.filter(s => s.invoiceNo !== invoiceNo), pagination: salesData?.pagination }, { revalidate: false })
     try {
       const url = `/api/sales/${encodeURIComponent(invoiceNo)}`
       const response = await electronFetch(url, { method: 'DELETE' })
       if (response.ok) {
-        await loadSales()
+        await mutateSales()
+        toast.success('Ventes', { description: 'Vente supprimée.' })
       } else {
+        mutateSales({ sales: previousSales, pagination: salesData?.pagination }, { revalidate: false })
         const err = await response.json().catch(() => ({}))
-        alert(err?.error || `Erreur lors de la suppression (${response.status})`)
+        toast.error('Ventes', { description: err?.error || `Erreur lors de la suppression (${response.status})` })
       }
     } catch (error) {
       console.error('Erreur lors de la suppression:', error)
-      alert('Erreur lors de la suppression')
+      mutateSales({ sales: previousSales, pagination: salesData?.pagination }, { revalidate: false })
+      toast.error('Ventes', { description: 'Erreur lors de la suppression' })
     }
   }
 
@@ -336,22 +329,26 @@ export function SalesContent() {
   }
 
   const handleGenerateQuote = async (sale: any) => {
+    const id = toast.loading('Ventes', { description: 'Génération du devis en cours...' })
     try {
-      await generateQuotePDF(await enrichSaleForPdf(sale))
-      alert('Devis généré avec succès!')
-    } catch (e: any) {
+      const { generateQuotePDFViaWorker } = await import('@/lib/pdf-worker-client')
+      await generateQuotePDFViaWorker(await enrichSaleForPdf(sale))
+      toast.success('Ventes', { description: 'Devis généré avec succès !', id })
+    } catch (e) {
       console.error('Devis:', e)
-      alert(`Erreur: ${e.message}`)
+      toast.error('Ventes', { description: safeErrorMessage(e, 'Erreur lors de la génération du devis'), id })
     }
   }
 
   const handleGenerateInvoice = async (sale: any) => {
+    const id = toast.loading('Ventes', { description: 'Génération de la facture en cours...' })
     try {
-      await generateInvoicePDF([await enrichSaleForPdf(sale)])
-      alert('Facture générée avec succès!')
-    } catch (e: any) {
+      const { generateInvoicePDFViaWorker } = await import('@/lib/pdf-worker-client')
+      await generateInvoicePDFViaWorker([await enrichSaleForPdf(sale)])
+      toast.success('Ventes', { description: 'Facture générée avec succès !', id })
+    } catch (e) {
       console.error('Facture:', e)
-      alert(`Erreur: ${e.message}`)
+      toast.error('Ventes', { description: safeErrorMessage(e, 'Erreur lors de la génération de la facture'), id })
     }
   }
 
@@ -372,9 +369,8 @@ export function SalesContent() {
 
   if (loading) {
     return (
-      <div className="w-full min-w-0 py-4 sm:py-6 space-y-4">
-        <div className="flex justify-between items-center">
-          <Skeleton className="h-9 w-40" />
+      <div className="space-y-4">
+        <div className="flex justify-end">
           <Skeleton className="h-10 w-28" />
         </div>
         <Skeleton className="h-10 w-full" />
@@ -388,9 +384,8 @@ export function SalesContent() {
   }
 
   return (
-    <div className="w-full min-w-0 py-4 sm:py-6 space-y-4 sm:space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <h1 className="text-2xl sm:text-3xl font-bold text-foreground">Ventes</h1>
         <div className="flex flex-wrap gap-2">
           <Button onClick={handleExportCSV} variant="outline">
             📊 Export CSV
@@ -482,6 +477,10 @@ export function SalesContent() {
                   id="invoiceNo"
                   value={formData.invoiceNo}
                   onChange={(e) => setFormData(prev => ({ ...prev, invoiceNo: e.target.value }))}
+                  placeholder="F2026-000001"
+                  maxLength={50}
+                  pattern="[A-Za-z0-9\-]+"
+                  title="Lettres, chiffres et tirets uniquement (pas de caractères spéciaux)"
                   required
                 />
               </div>
@@ -501,7 +500,7 @@ export function SalesContent() {
                       </SelectItem>
                     ) : (
                       clients.map((client) => (
-                        <SelectItem key={client.clientName} value={client.clientName}>
+                        <SelectItem key={client.clientName ?? ''} value={client.clientName ?? ''}>
                           {[client.firstName, client.lastName].filter(Boolean).join(' ') || client.clientName}
                         </SelectItem>
                       ))

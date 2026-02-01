@@ -14,8 +14,9 @@ Les clients, articles, ventes, charges et options de service sont désormais **i
 
 1. **Sauvegarder la base** (recommandé).
 
-2. **Exécuter le script SQL** dans l’éditeur SQL Supabase (ou avec `psql`) :
-   - Fichier : `prisma/migrations/pre-per-user-data.sql`
+2. **Exécuter les scripts SQL** dans l’éditeur SQL Supabase (ou avec `psql`), **dans cet ordre** :
+   - `prisma/migrations/pre-per-user-data.sql` (clients, articles, ventes, charges, service_options)
+   - `prisma/migrations/pre-per-user-parametres.sql` (parametres_entreprise : clé composite `userId` + `key`)
 
 3. Si une contrainte n’existe pas (nom différent), vous pouvez ignorer l’erreur `DROP CONSTRAINT IF EXISTS` ou adapter le nom. Pour lister les contraintes :
    ```sql

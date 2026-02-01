@@ -1,288 +1,112 @@
-# ARES Dashboard - Pilotage d'entreprise
+# ARES Dashboard
 
-Application web de pilotage d'entreprise pour ARES, remplaçant le fichier Excel V4 "no codes". L'application couvre la gestion complète des clients, services, ventes, charges professionnelles, performances par service, et fournit des vues graphiques et agrégations.
+Application web de pilotage d’entreprise : clients, articles, ventes, charges, dashboard avec KPIs et graphiques. Données isolées par utilisateur (multi-utilisateurs).
 
-## 🚀 Fonctionnalités
+## Fonctionnalités
 
-### 📊 Dashboard
-- **KPIs en temps réel** : CA HT, CA TTC, Charges HT, Résultat Net, Net Après URSSAF, Marge moyenne
-- **Graphiques dynamiques** : Évolution du CA par mois, Répartition par service
-- **Top Services** : Classement des services par CA avec marges
-- **Filtrage par année** avec sélecteur intuitif
+- **Dashboard** : KPIs (CA HT, charges, résultat net, marge), graphiques d’évolution et par service, filtres par période, comparaison avec période précédente.
+- **Clients** : CRUD, recherche, export/import CSV.
+- **Articles** : Services et produits (prix HT, TVA, options), export/import CSV.
+- **Ventes** : Facturation, numéros auto, liaison client/service, export CSV.
+- **Charges** : Charges professionnelles, récurrentes ou ponctuelles, liaison service/client, répartition par catégorie.
+- **Paramètres** : Taux URSSAF, TVA, logo entreprise.
+- **Auth** : Inscription, connexion (JWT), mot de passe oublié, réinitialisation.
 
-### 👥 Gestion des Clients
-- CRUD complet (Créer, Lire, Modifier, Supprimer)
-- Recherche et tri
-- Export/Import CSV
-- Validation des données
+## Stack
 
-### 📦 Gestion des Articles
-- Services et produits avec prix HT, TVA, unité
-- Duplication d'articles
-- Export/Import CSV
-- Types : Service ou Produit
+- **Frontend** : Next.js 15 (App Router), React 19, TypeScript, Tailwind CSS, shadcn/ui, Recharts, SWR.
+- **Backend** : API Routes Next.js, Prisma, PostgreSQL (Supabase).
+- **Auth** : JWT (cookie httpOnly).
+- **Desktop** : Electron 38 (optionnel, voir README-ELECTRON.md).
 
-### 💰 Gestion des Ventes
-- Création avec calculs automatiques (CA HT, TVA, TTC)
-- Génération automatique des numéros de facture
-- Sélection client/service avec autocomplétion
-- Export/Import CSV avec mapping des colonnes
-
-### 💳 Gestion des Charges
-- Charges professionnelles avec catégorisation
-- Liaison optionnelle aux services
-- Types : Fixe ou Variable
-- Export/Import CSV
-
-### 📈 Performances
-- Analyse par service avec KPIs détaillés
-- Graphiques de répartition et marges
-- Filtrage par année
-
-### ⚙️ Paramètres
-- Configuration des taux (URSSAF, TVA)
-- Gestion des backups
-- Export JSON global et SQL DDL
-
-## 🛠️ Stack Technique
-
-- **Framework** : Next.js 14 (App Router) + TypeScript
-- **UI** : TailwindCSS + shadcn/ui + lucide-react
-- **Graphiques** : Recharts
-- **Base de données** : SQLite (dev) + Prisma ORM
-- **Validation** : Zod
-- **Import/Export** : PapaParse (CSV)
-- **Tests** : Vitest + Playwright
-
-## 📦 Installation
+## Installation
 
 ### Prérequis
-- Node.js 18+ 
-- npm ou yarn
 
-### Installation
+- Node.js 18+
+- PostgreSQL (ou compte Supabase)
+
+### Étapes
+
 ```bash
-# Cloner le projet
 git clone <repository-url>
 cd ares-dashboard
 
-# Installer les dépendances
 npm install
 
-# Configurer la base de données
+# Fichier d'environnement (copier et renseigner)
 cp .env.example .env
 
-# Générer le client Prisma
+# Générer le client Prisma (automatique après npm install via postinstall)
 npx prisma generate
 
-# Créer et peupler la base de données
+# Créer les tables et optionnellement les données de démo
 npx prisma db push
 npm run db:seed
 ```
 
-### Envoi d’emails (mot de passe oublié)
+### Variables d’environnement
 
-Pour que les utilisateurs reçoivent un email avec le lien de réinitialisation, configurez [Resend](https://resend.com) :
+- `DATABASE_URL` : URL PostgreSQL (ex. Supabase).
+- En production (Vercel) : `DATABASE_POOLER_URL` avec l’URL du pooler (port 6543) et `?pgbouncer=true&connect_timeout=30&connection_limit=1`.
+- `JWT_SECRET` : Secret pour signer les tokens (obligatoire en prod).
+- Optionnel (emails) : `RESEND_API_KEY`, `RESEND_FROM_EMAIL` pour le mot de passe oublié.
 
-- **Vercel / production** : dans les variables d’environnement du projet, ajoutez :
-  - `RESEND_API_KEY` : clé API Resend (créer un domaine et une clé sur resend.com)
-  - `RESEND_FROM_EMAIL` : adresse d’envoi (ex. `noreply@votredomaine.com`)
+### Mot de passe oublié
 
-Sans ces variables, le lien de réinitialisation est tout de même affiché après la demande (en dev dans l’interface, en production avec un message indiquant que l’email n’est pas configuré).
+Sans Resend, le lien de réinitialisation est affiché dans l’interface (dev) ou indiqué comme “email non configuré” (prod). Avec Resend configuré, l’email est envoyé automatiquement.
 
-## 🚀 Commandes
+## Commandes
 
-### Développement
-```bash
-# Démarrer le serveur de développement
-npm run dev
+| Commande | Description |
+|----------|-------------|
+| `npm run dev` | Serveur de développement |
+| `npm run build` | Build de production |
+| `npm run start` | Démarrer en production |
+| `npm run db:push` | Synchroniser le schéma Prisma avec la BDD |
+| `npm run db:seed` | Peupler les paramètres par défaut |
+| `npm run db:studio` | Ouvrir Prisma Studio |
+| `npm run db:reset` | Réinitialiser la BDD (schéma + seed) |
+| `npm run electron:dev` | Lancer l’app en mode Electron (voir README-ELECTRON.md) |
 
-# Ouvrir Prisma Studio
-npm run db:studio
-
-# Synchroniser le schéma de base de données
-npm run db:push
-```
-
-### Production
-```bash
-# Construire l'application
-npm run build
-
-# Démarrer en production
-npm run start
-```
-
-### Tests
-```bash
-# Tests unitaires
-npm run test
-
-# Tests E2E
-npm run test:e2e
-
-# Tests avec couverture
-npm run test:coverage
-```
-
-### Base de données
-```bash
-# Réinitialiser la base (schéma + seed)
-npm run db:reset
-
-# Créer les paramètres entreprise par défaut
-npm run db:seed
-
-# Ouvrir Prisma Studio
-npx prisma studio
-```
-
-## 📁 Structure du Projet
+## Structure du projet
 
 ```
 ares-dashboard/
 ├── src/
-│   ├── app/                    # App Router (Next.js 14)
-│   │   ├── dashboard/          # Page dashboard
-│   │   ├── clients/            # Gestion des clients
-│   │   ├── articles/           # Gestion des articles
-│   │   ├── sales/              # Gestion des ventes
-│   │   ├── charges/            # Gestion des charges
-│   │   ├── performances/       # Analyse des performances
-│   │   ├── settings/           # Paramètres
-│   │   └── api/                # API Routes
-│   ├── components/             # Composants React
-│   │   ├── ui/                 # Composants UI (shadcn/ui)
-│   │   └── navigation.tsx      # Navigation principale
-│   └── lib/                    # Utilitaires
-│       ├── db.ts               # Client Prisma
-│       ├── validations.ts      # Schémas Zod
-│       ├── math.ts             # Calculs métier
-│       └── csv.ts              # Import/Export CSV
+│   ├── app/              # App Router Next.js
+│   │   ├── api/          # API Routes (auth, dashboard, clients, articles, sales, charges, etc.)
+│   │   ├── dashboard/    # Page dashboard + contenu + hooks SWR
+│   │   ├── clients/      # Gestion clients
+│   │   ├── articles/     # Gestion articles
+│   │   ├── sales/        # Gestion ventes
+│   │   ├── charges/      # Gestion charges
+│   │   ├── settings/     # Paramètres entreprise
+│   │   ├── login/, register/, forgot-password/, reset-password/
+│   │   └── layout.tsx, globals.css
+│   ├── components/       # Layout, navigation, auth-provider, ui (shadcn)
+│   └── lib/              # auth, db, validations, math, date-utils, electron-api, etc.
 ├── prisma/
-│   ├── schema.prisma           # Schéma de base de données
-│   └── seed-realistic.ts       # Paramètres entreprise par défaut (npm run db:seed)
-├── tests/                      # Tests
-│   ├── unit/                   # Tests unitaires
-│   └── e2e/                    # Tests E2E
-└── public/                     # Assets statiques
+│   ├── schema.prisma     # Schéma BDD (User, Client, Article, Sale, Charge, etc.)
+│   ├── migrations/       # Migrations SQL
+│   └── seed-realistic.ts # Seed paramètres
+├── public/               # Assets, images, uploads (logos)
+├── electron/             # Main et preload Electron (si usage desktop)
+├── docs/                 # Documentation (migrations, etc.)
+├── ROADMAP.md            # Priorités et roadmap
+└── README-ELECTRON.md    # Build et usage Electron
 ```
 
-## 🗄️ Modèle de Données
+## Données par utilisateur
 
-### Tables Principales
-- **Client** : Informations clients (nom, email, téléphone, adresse)
-- **Article** : Services/produits (nom, prix HT, TVA, unité, type)
-- **Sale** : Ventes (facture, date, client, service, quantité, prix, calculs)
-- **Charge** : Charges professionnelles (date, catégorie, fournisseur, montant, service lié)
-- **ParametresEntreprise** : Configuration (taux URSSAF, mentions, etc.)
+Les clients, articles, ventes, charges et paramètres sont isolés par utilisateur (clés composites ou `userId`). Pour migrer une base existante, voir `docs/MIGRATION-PER-USER-DATA.md` et les scripts SQL dans `prisma/migrations/`.
 
-### Relations
-- Sale → Client (clientName)
-- Sale → Article (serviceName)
-- Charge → Article (linkedService, optionnel)
+## Déploiement (Vercel)
 
-## 🧮 Calculs Métier
+- Configurer `DATABASE_POOLER_URL` (Supabase pooler, port 6543) et `JWT_SECRET`.
+- Le build exécute `prisma generate` (postinstall).
+- Fichier `.vercelignore` utilisé pour exclure `node_modules`, `.next`, `dist-electron`, `public/uploads`, etc.
 
-### Ventes
-- `caHt = quantity × unitPriceHt`
-- `tvaAmount = caHt × (tvaRate / 100)`
-- `totalTtc = caHt + tvaAmount`
-- `year = EXTRACT(YEAR FROM saleDate)`
+## Licence
 
-### Dashboard (par année)
-- `CA_HT_Année = SUM(Sale.caHt WHERE year=Y)`
-- `CA_TTC_Année = SUM(Sale.totalTtc WHERE year=Y)`
-- `Charges_HT_Année = SUM(Charge.amountHt WHERE year=Y)`
-- `Résultat_Net_HT = CA_HT_Année - Charges_HT_Année`
-- `Net_Dispo_Après_URSSAF = Résultat_Net_HT - (CA_HT_Année × tauxUrssaf)`
-
-### Performances par Service
-- `qty_sold = SUM(Sale.quantity WHERE year=Y AND serviceName=s)`
-- `ca_ht = SUM(Sale.caHt WHERE year=Y AND serviceName=s)`
-- `charges_ht_linked = SUM(Charge.amountHt WHERE year=Y AND linkedService=s)`
-- `result_net = ca_ht - charges_ht_linked`
-- `margin_pct = IF ca_ht>0 THEN result_net/ca_ht×100 ELSE 0`
-
-## 📥 Import/Export
-
-### Import CSV
-- **Mapping automatique** des colonnes
-- **Validation** des données avec Zod
-- **Preview** avant import
-- **Gestion des erreurs** détaillée
-
-### Export
-- **CSV** : Toutes les listes
-- **JSON** : Export global complet
-- **SQL DDL** : Schéma de base de données
-
-## 🧪 Tests
-
-### Tests Unitaires
-- Calculs métier (math.ts)
-- Parsers CSV (csv.ts)
-- Validations Zod (validations.ts)
-
-### Tests E2E
-- Création client/article/vente/charge
-- Vérification des KPIs et graphiques
-- Import CSV et validation des totaux
-
-## 🎨 UI/UX
-
-### Design
-- **Interface sobre et professionnelle** (shadcn/ui + Tailwind)
-- **Couleurs** : Blancs et gris doux avec arrondis
-- **Navigation** : Menu horizontal avec icônes
-- **Responsive** : Adapté mobile et desktop
-
-### Composants
-- **DataTable** : Table avec recherche, tri, pagination
-- **KpiCard** : Cartes de métriques avec tendances
-- **YearPicker** : Sélecteur d'année avec URL sync
-- **Charts** : Graphiques Recharts intégrés
-
-## 🔐 Sécurité
-
-- **Validation** côté client et serveur (Zod)
-- **Sanitisation** des entrées utilisateur
-- **Contraintes** d'unicité en base
-- **Gestion d'erreurs** robuste
-
-## 🚀 Déploiement
-
-### Variables d'Environnement
-```env
-DATABASE_URL="file:./dev.db"  # SQLite local
-NEXTAUTH_SECRET="your-secret"
-NEXTAUTH_URL="http://localhost:3000"
-```
-
-### Production
-- **Base de données** : PostgreSQL recommandé
-- **Hébergement** : Vercel, Netlify, ou serveur dédié
-- **CDN** : Pour les assets statiques
-
-## 🤝 Contribution
-
-1. Fork le projet
-2. Créer une branche feature (`git checkout -b feature/AmazingFeature`)
-3. Commit les changements (`git commit -m 'Add AmazingFeature'`)
-4. Push vers la branche (`git push origin feature/AmazingFeature`)
-5. Ouvrir une Pull Request
-
-## 📝 Licence
-
-Ce projet est sous licence MIT. Voir le fichier `LICENSE` pour plus de détails.
-
-## 🆘 Support
-
-Pour toute question ou problème :
-1. Vérifier la documentation
-2. Consulter les issues existantes
-3. Créer une nouvelle issue avec les détails
-
----
-
-**ARES Dashboard** - Pilotage d'entreprise moderne et efficace 🚀
+MIT.

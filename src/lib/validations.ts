@@ -43,10 +43,21 @@ export const saleSchema = z.object({
   year: z.number().int().min(2020).max(2030),
 })
 
+// Création : invoiceNo optionnel (généré côté API si vide). Si fourni : lettres, chiffres et tirets uniquement.
 export const createSaleSchema = saleSchema.omit({ caHt: true, tvaAmount: true, totalTtc: true, year: true }).extend({
+  invoiceNo: z
+    .string()
+    .max(50, 'Numéro de facture trop long')
+    .regex(/^[A-Za-z0-9\-]*$/, 'Uniquement lettres, chiffres et tirets (pas de caractères spéciaux)')
+    .optional()
+    .or(z.literal('')),
   options: z.string().optional(),
 })
-export const updateSaleSchema = saleSchema
+// PUT : le front n'envoie pas caHt/tvaAmount/totalTtc/year, recalculés côté API
+export const updateSaleSchema = saleSchema.omit({ caHt: true, tvaAmount: true, totalTtc: true, year: true }).extend({
+  saleDate: z.string().min(1, 'La date de vente est requise'),
+  options: z.string().optional(),
+})
 
 // Charge validations
 export const chargeSchema = z.object({

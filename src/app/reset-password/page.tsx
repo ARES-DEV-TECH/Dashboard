@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { Eye, EyeOff, Loader2 } from 'lucide-react'
 import { electronFetch } from '@/lib/electron-api'
+import { toast } from 'sonner'
 
 function ResetPasswordContent() {
   const searchParams = useSearchParams()
@@ -23,7 +24,11 @@ function ResetPasswordContent() {
   const [success, setSuccess] = useState(false)
 
   useEffect(() => {
-    if (!token) setError('Lien invalide ou expiré.')
+    if (!token) {
+      const msg = 'Lien invalide ou expiré.'
+      setError(msg)
+      toast.error('Réinitialisation', { description: msg })
+    }
   }, [token])
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -31,11 +36,15 @@ function ResetPasswordContent() {
     setError('')
     if (!token) return
     if (password.length < 6) {
-      setError('Le mot de passe doit contenir au moins 6 caractères.')
+      const msg = 'Le mot de passe doit contenir au moins 6 caractères.'
+      setError(msg)
+      toast.error('Réinitialisation', { description: msg })
       return
     }
     if (password !== confirmPassword) {
-      setError('Les mots de passe ne correspondent pas.')
+      const msg = 'Les mots de passe ne correspondent pas.'
+      setError(msg)
+      toast.error('Réinitialisation', { description: msg })
       return
     }
     setLoading(true)
@@ -48,12 +57,17 @@ function ResetPasswordContent() {
       const data = await res.json().catch(() => ({}))
       if (res.ok) {
         setSuccess(true)
+        toast.success('Réinitialisation', { description: 'Mot de passe mis à jour. Redirection...' })
         setTimeout(() => router.push('/login'), 2000)
       } else {
-        setError(data.error || 'Lien invalide ou expiré.')
+        const msg = data.error || 'Lien invalide ou expiré.'
+        setError(msg)
+        toast.error('Réinitialisation', { description: msg })
       }
     } catch {
-      setError('Une erreur est survenue.')
+      const msg = 'Une erreur est survenue.'
+      setError(msg)
+      toast.error('Réinitialisation', { description: msg })
     } finally {
       setLoading(false)
     }

@@ -9,6 +9,8 @@ interface ComparisonVariations {
   caHt?: VariationItem
   chargesHt?: VariationItem
   resultNet?: VariationItem
+  /** Résultat après URSSAF (même métrique que la carte KPI "Résultat Net") */
+  resultAfterUrssaf?: VariationItem
   averageMargin?: VariationItem
 }
 
@@ -17,8 +19,11 @@ export function DashboardComparison({
 }: {
   variations: ComparisonVariations
 }) {
-  const formatPct = (v?: VariationItem) =>
-    v?.percentage != null ? `${v.percentage > 0 ? '+' : ''}${v.percentage.toFixed(1)}%` : '0'
+  const formatPct = (v?: VariationItem) => {
+    if (v?.percentage == null || !Number.isFinite(v.percentage)) return '—'
+    const p = v.percentage
+    return `${p > 0 ? '+' : ''}${p.toFixed(1)}%`
+  }
   const trendClass = (v?: VariationItem, invert = false) => {
     if (!v?.trend) return 'text-foreground'
     if (invert) {
@@ -53,8 +58,8 @@ export function DashboardComparison({
           </div>
           <div className="text-center">
             <div className="text-sm text-muted-foreground">Résultat Net</div>
-            <div className={`text-lg font-bold ${trendClass(variations.resultNet)}`}>
-              {formatPct(variations.resultNet)}
+            <div className={`text-lg font-bold ${trendClass(variations.resultAfterUrssaf ?? variations.resultNet)}`}>
+              {formatPct(variations.resultAfterUrssaf ?? variations.resultNet)}
             </div>
           </div>
           <div className="text-center">

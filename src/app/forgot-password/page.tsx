@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { Loader2 } from 'lucide-react'
 import { electronFetch } from '@/lib/electron-api'
+import { toast } from 'sonner'
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('')
@@ -36,11 +37,16 @@ export default function ForgotPasswordPage() {
         setSent(true)
         if (data.resetLink) setResetLink(data.resetLink)
         if (data.emailNotConfigured) setEmailNotConfigured(true)
+        toast.success('Mot de passe oublié', { description: 'Si un compte existe, un email a été envoyé.' })
       } else {
-        setError(data.error || 'Une erreur est survenue.')
+        const msg = data.error || 'Une erreur est survenue.'
+        setError(msg)
+        toast.error('Mot de passe oublié', { description: msg })
       }
     } catch {
-      setError('Une erreur est survenue.')
+      const msg = 'Une erreur est survenue.'
+      setError(msg)
+      toast.error('Mot de passe oublié', { description: msg })
     } finally {
       setLoading(false)
     }

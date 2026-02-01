@@ -9,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Label } from '@/components/ui/label'
 import { Eye, EyeOff, Mail, Lock, User, Building, ArrowRight, Loader2, CheckCircle } from 'lucide-react'
 import { electronFetch } from '@/lib/electron-api'
+import { toast } from 'sonner'
 
 export default function RegisterPage() {
   const [formData, setFormData] = useState({
@@ -47,13 +48,17 @@ export default function RegisterPage() {
     setSuccess(false)
 
     if (formData.password !== formData.confirmPassword) {
-      setError('Les mots de passe ne correspondent pas')
+      const msg = 'Les mots de passe ne correspondent pas'
+      setError(msg)
+      toast.error('Inscription', { description: msg })
       setLoading(false)
       return
     }
 
     if (formData.password.length < 6) {
-      setError('Le mot de passe doit contenir au moins 6 caractères')
+      const msg = 'Le mot de passe doit contenir au moins 6 caractères'
+      setError(msg)
+      toast.error('Inscription', { description: msg })
       setLoading(false)
       return
     }
@@ -75,15 +80,20 @@ export default function RegisterPage() {
 
       if (response.ok) {
         setSuccess(true)
+        toast.success('Inscription', { description: 'Compte créé. Redirection...' })
         setTimeout(() => {
           router.push('/dashboard')
           router.refresh()
         }, 1500)
       } else {
-        setError(data.error || 'Erreur lors de l\'inscription')
+        const msg = data.error || 'Erreur lors de l\'inscription'
+        setError(msg)
+        toast.error('Inscription', { description: msg })
       }
     } catch (error) {
-      setError('Erreur lors de l\'inscription')
+      const msg = 'Erreur lors de l\'inscription'
+      setError(msg)
+      toast.error('Inscription', { description: msg })
     } finally {
       setLoading(false)
     }

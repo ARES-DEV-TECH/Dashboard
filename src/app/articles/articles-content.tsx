@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
+import useSWR from 'swr'
 import { DataTable, Column } from '@/components/ui/data-table'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -15,7 +16,9 @@ import { Settings, Plus, Trash2 } from 'lucide-react'
 import { Article } from '@/lib/validations'
 import { generateCSV, downloadCSV } from '@/lib/csv'
 import { electronFetch } from '@/lib/electron-api'
+import { toast } from 'sonner'
 import { Skeleton } from '@/components/ui/skeleton'
+import { SWR_KEYS, fetchArticles } from '@/lib/swr-fetchers'
 
 interface ServiceOption {
   id: string
@@ -26,8 +29,10 @@ interface ServiceOption {
 }
 
 export function ArticlesContent() {
-  const [articles, setArticles] = useState<Article[]>([])
-  const [loading, setLoading] = useState(true)
+  const { data: articles = [], error, isLoading, mutate } = useSWR<Article[]>(SWR_KEYS.articles, fetchArticles, {
+    revalidateOnFocus: false,
+    dedupingInterval: 5000,
+  })
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingArticle, setEditingArticle] = useState<Article | null>(null)
   const [formData, setFormData] = useState<Partial<Article>>({})
@@ -41,27 +46,7 @@ export function ArticlesContent() {
     priceHt: 0,
     isDefault: false
   })
-
-  useEffect(() => {
-    loadArticles()
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
-
-  const loadArticles = async () => {
-    try {
-      const res = await electronFetch('/api/articles')
-      const data = await res.json()
-      if (res.ok && Array.isArray(data)) setArticles(data)
-      else {
-        setArticles([])
-        if (!res.ok) console.error('API articles:', res.status, data)
-      }
-    } catch (e) {
-      console.error('Articles:', e)
-      setArticles([])
-    } finally {
-      setLoading(false)
-    }
-  }
+  const loading = isLoading
 
   const loadServiceOptions = async (serviceName: string) => {
     try {
@@ -90,10 +75,11 @@ export function ArticlesContent() {
       if (res.ok) {
         await loadServiceOptions(selectedService.serviceName)
         setNewOption({ name: '', description: '', priceHt: 0, isDefault: false })
-      } else alert(`Erreur: ${(await res.json()).error}`)
+        toast.success('Articles', { description: 'Option ajoutée.' })
+      } else toast.error('Articles', { description: (await res.json()).error })
     } catch (e) {
       console.error('Option:', e)
-      alert("Erreur lors de l'ajout de l'option")
+      toast.error('Articles', { description: "Erreur lors de l'ajout de l'option" })
     }
   }
 
@@ -102,10 +88,10 @@ export function ArticlesContent() {
     try {
       const res = await electronFetch(`/api/service-options/${optionId}`, { method: 'DELETE' })
       if (res.ok) await loadServiceOptions(selectedService!.serviceName)
-      else alert("Erreur lors de la suppression")
+      else toast.error('Articles', { description: "Erreur lors de la suppression" })
     } catch (e) {
       console.error('Option:', e)
-      alert("Erreur lors de la suppression")
+      toast.error('Articles', { description: "Erreur lors de la suppression" })
     }
   }
 
@@ -120,26 +106,38 @@ export function ArticlesContent() {
       setSaveError('Le prix HT doit être un nombre strictement positif.')
       return
     }
-    try {
-      const payload = {
-        serviceName: formData.serviceName.trim(),
-        priceHt: price,
-        billByHour: !!formData.billByHour,
-        billingFrequency: formData.billingFrequency || 'ponctuel',
-        type: formData.type || 'service',
-      }
-      const url = editingArticle ? `/api/articles/${encodeURIComponent(editingArticle.serviceName)}` : '/api/articles'
-      const method = editingArticle ? 'PUT' : 'POST'
+    const payload = {
+      serviceName: formData.serviceName.trim(),
+      priceHt: price,
+      billByHour: !!formData.billByHour,
+      billingFrequency: formData.billingFrequency || 'ponctuel',
+      type: formData.type || 'service',
+    }
+    const url = editingArticle ? `/api/articles/${encodeURIComponent(editingArticle.serviceName)}` : '/api/articles'
+    const method = editingArticle ? 'PUT' : 'POST'
+    const previousArticles = [...articles]
 
+    if (editingArticle) {
+      const optimistic = articles.map(a =>
+        a.serviceName === editingArticle.serviceName ? { ...a, ...payload } : a
+      )
+      mutate(optimistic, { revalidate: false })
+    } else {
+      mutate([...articles, { ...payload } as Article], { revalidate: false })
+    }
+
+    try {
       const res = await electronFetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
       const data = await res.json().catch(() => ({}))
       if (res.ok) {
-        await loadArticles()
+        await mutate()
         setIsDialogOpen(false)
         setEditingArticle(null)
         setFormData({})
         setSaveError(null)
+        toast.success('Articles', { description: editingArticle ? 'Article mis à jour.' : 'Article créé.' })
       } else {
+        mutate(previousArticles, { revalidate: false })
         const detailsStr = typeof data?.details === 'string'
           ? data.details
           : Array.isArray(data?.details)
@@ -148,10 +146,13 @@ export function ArticlesContent() {
         const base = data?.error || `Erreur ${res.status}`
         const message = detailsStr ? `${base}: ${detailsStr}` : base
         setSaveError(message)
+        toast.error('Articles', { description: message })
       }
     } catch (e) {
       console.error('Article:', e)
+      mutate(previousArticles, { revalidate: false })
       setSaveError('Erreur réseau ou serveur. Réessayez.')
+      toast.error('Articles', { description: 'Erreur réseau ou serveur. Réessayez.' })
     }
   }
 
@@ -164,12 +165,22 @@ export function ArticlesContent() {
 
   const handleDelete = async (article: Article) => {
     if (!confirm(`Supprimer l'article "${article.serviceName}" ?`)) return
+    const previousArticles = [...articles]
+    mutate(articles.filter(a => a.serviceName !== article.serviceName), { revalidate: false })
     try {
       const res = await electronFetch(`/api/articles/${encodeURIComponent(article.serviceName)}`, { method: 'DELETE' })
-
-      if (res.ok) await loadArticles()
+      if (res.ok) {
+        await mutate()
+        toast.success('Articles', { description: 'Article supprimé.' })
+      } else {
+        const data = await res.json().catch(() => ({}))
+        mutate(previousArticles, { revalidate: false })
+        toast.error('Articles', { description: data?.error || 'Erreur lors de la suppression' })
+      }
     } catch (e) {
       console.error('Article:', e)
+      mutate(previousArticles, { revalidate: false })
+      toast.error('Articles', { description: 'Erreur lors de la suppression' })
     }
   }
 
@@ -260,6 +271,20 @@ export function ArticlesContent() {
     )
   }
 
+  if (error) {
+    return (
+      <div className="space-y-6">
+        <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-destructive">
+          <p className="font-medium">Erreur lors du chargement des articles</p>
+          <p className="text-sm mt-1">{error.message}</p>
+          <Button variant="outline" size="sm" className="mt-3" onClick={() => mutate()}>
+            Réessayer
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-6">
       {/* Guide de workflow */}
@@ -292,6 +317,7 @@ export function ArticlesContent() {
         onDelete={handleDelete}
         onExport={handleExport}
         searchPlaceholder="Rechercher un article..."
+        virtualized
       />
 
       {/* Add/Edit Article Dialog */}

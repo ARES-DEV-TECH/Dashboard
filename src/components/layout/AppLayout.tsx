@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { Logo } from '@/components/logo'
 import { NavLinks, UserMenu } from '@/components/navigation'
+import { Breadcrumbs } from '@/components/layout/Breadcrumbs'
 import { Button } from '@/components/ui/button'
 import { Menu, X } from 'lucide-react'
 
@@ -124,6 +125,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       >
         <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-4 py-4 sm:px-6 sm:py-6">
           <div className="mx-auto max-w-6xl w-full">
+            <Breadcrumbs />
             {children}
           </div>
         </div>

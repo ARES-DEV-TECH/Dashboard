@@ -90,7 +90,8 @@ model ServiceOption {
 }
 
 model Sale {
-  invoiceNo    String   @id
+  userId       String
+  invoiceNo    String
   saleDate     DateTime
   clientName   String
   serviceName  String
@@ -106,9 +107,10 @@ model Sale {
   invoiceId    String?  // Reference to invoice
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
-  
-  userId       String
+
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, invoiceNo])
 
   // Relations optionnelles - les ventes peuvent exister sans client/article correspondant
   // client  Client  @relation(fields: [clientName], references: [clientName], onDelete: Cascade)
@@ -124,8 +126,10 @@ model Sale {
   @@index([quoteId])
   @@index([invoiceId])
   @@index([userId])
-  @@index([saleDate, year]) // Index composite pour les requêtes par date et année
-  @@index([clientName, serviceName]) // Index composite pour les requêtes par client et service
+  @@index([userId, saleDate]) // Requêtes dashboard/evolution par user + période
+  @@index([userId, year])
+  @@index([saleDate, year])
+  @@index([clientName, serviceName])
   @@map("sales")
 }
 
@@ -162,8 +166,11 @@ model Charge {
   @@index([linkedClient]) // Index pour les requêtes par client
   @@index([expenseDate])
   @@index([userId])
-  @@index([year, category]) // Index composite pour les requêtes par année et catégorie
-  @@index([expenseDate, year]) // Index composite pour les requêtes par date et année
+  @@index([userId, expenseDate]) // Requêtes breakdown/evolution par user + période
+  @@index([userId, year])
+  @@index([userId, recurring])
+  @@index([year, category])
+  @@index([expenseDate, year])
   @@map("charges")
 }
 

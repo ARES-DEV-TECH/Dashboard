@@ -75,7 +75,7 @@ export async function POST(request: NextRequest) {
             
             if (tvaDifference > 0.01 || totalDifference > 0.01) {
               await prisma.sale.update({
-                where: { invoiceNo: sale.invoiceNo },
+                where: { userId_invoiceNo: { userId: user.id, invoiceNo: sale.invoiceNo } },
                 data: {
                   tvaAmount: expectedTvaAmount,
                   totalTtc: expectedTotalTtc

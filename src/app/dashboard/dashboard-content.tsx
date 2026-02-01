@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useMemo, memo, startTransition } from 'react'
+import { useState, useEffect, useMemo, memo } from 'react'
 import dynamic from 'next/dynamic'
 import {
   TrendingUp,
@@ -11,8 +11,9 @@ import {
   Calculator,
 } from 'lucide-react'
 import { DateRange, buildApiParams, calculatePresetDates, calculatePreviousPeriod } from '@/lib/date-utils'
-import { fetchDashboard, fetchChargesBreakdown, fetchDashboardEvolution, fetchSettings } from '@/lib/electron-api'
+import { fetchDashboard } from '@/lib/electron-api'
 import { calculateComparison as calculateComparisonData } from '@/lib/comparison-utils'
+import { useDashboardData } from './use-dashboard-data'
 import { DashboardFilters } from './components/DashboardFilters'
 import { DashboardKPIs, type KpiItem } from './components/DashboardKPIs'
 import { DashboardComparison } from './components/DashboardComparison'
@@ -89,85 +90,38 @@ const DashboardContent = memo(function DashboardContent() {
   const [dateRange, setDateRange] = useState<DateRange>(() => calculatePresetDates('thisMonth'))
   const [comparisonMode, setComparisonMode] = useState(true)
   const [comparisonData, setComparisonData] = useState<{ variations?: Record<string, { percentage?: number; trend?: 'up' | 'down' | 'neutral' | 'stable' }> } | null>(null)
-  const [data, setData] = useState<DashboardData | null>(null)
-  const [chargesData, setChargesData] = useState<ChargesBreakdown | null>(null)
-  const [evolutionData, setEvolutionData] = useState<EvolutionData | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [refreshing, setRefreshing] = useState(false)
-  const [companySettings, setCompanySettings] = useState<{ defaultTvaRate?: number; tauxUrssaf?: number } | null>(null)
 
-  const loadDashboardData = useCallback(async (isInitial = false) => {
-    try {
-      if (isInitial) setLoading(true)
-      else setRefreshing(true)
-      const params = buildApiParams(dateRange)
-      const [dashboardResponse, chargesResponse, evolutionResponse, settingsResponse] = await Promise.all([
-        fetchDashboard(params),
-        fetchChargesBreakdown(params),
-        fetchDashboardEvolution(dateRange.start.getFullYear()),
-        fetchSettings(),
-      ])
+  const { payload, error, isLoading, isValidating, mutate } = useDashboardData(dateRange)
+  const data = payload?.data ?? null
+  const chargesData = payload?.chargesData ?? null
+  const evolutionData = payload?.evolutionData ?? null
+  const companySettings = payload?.companySettings ?? null
 
-      if (
-        dashboardResponse.status === 401 ||
-        chargesResponse.status === 401 ||
-        evolutionResponse.status === 401 ||
-        settingsResponse.status === 401
-      ) {
-        window.location.href = '/login'
-        return
-      }
-      if (!dashboardResponse.ok || !chargesResponse.ok || !evolutionResponse.ok) {
-        throw new Error('API error')
-      }
-
-      const [dashboardData, chargesBreakdown, evolutionDataResponse, settingsData] = await Promise.all([
-        dashboardResponse.json(),
-        chargesResponse.json(),
-        evolutionResponse.json(),
-        settingsResponse.json(),
-      ])
-
-      const settingsObj = (settingsData.parameters || []).reduce((acc: Record<string, unknown>, param: { key: string; value: string }) => {
-        if (param.key === 'defaultTvaRate' || param.key === 'tauxUrssaf') {
-          acc[param.key] = parseFloat(param.value)
-        } else {
-          acc[param.key] = param.value
-        }
-        return acc
-      }, {})
-
-      let comparison: ReturnType<typeof calculateComparisonData> | null = null
-      if (comparisonMode) {
-        try {
-          const previousRange = calculatePreviousPeriod(dateRange)
-          const previousParams = buildApiParams(previousRange)
-          const previousResponse = await fetchDashboard(previousParams)
-          if (previousResponse.ok) {
-            const previousData = await previousResponse.json()
-            comparison = calculateComparisonData(dashboardData, previousData, dateRange, previousRange)
-          }
-        } catch {
-          comparison = null
-        }
-      } else {
-        comparison = null
-      }
-
-      startTransition(() => {
-        setData(dashboardData)
-        setChargesData(chargesBreakdown)
-        setEvolutionData(evolutionDataResponse)
-        setCompanySettings(settingsObj as { defaultTvaRate?: number; tauxUrssaf?: number })
-        setComparisonData(comparison)
-        setLoading(false)
-        setRefreshing(false)
-      })
-    } catch {
-      setLoading(false)
-      setRefreshing(false)
+  // Comparaison période précédente (fetch séparé, optionnel)
+  useEffect(() => {
+    if (!comparisonMode || !data) {
+      setComparisonData(null)
+      return
     }
-  }, [dateRange, comparisonMode])
+    let cancelled = false
+    const run = async () => {
+      try {
+        const previousRange = calculatePreviousPeriod(dateRange)
+        const previousParams = buildApiParams(previousRange)
+        const previousResponse = await fetchDashboard(previousParams)
+        if (cancelled || !previousResponse.ok) return
+        const previousData = await previousResponse.json()
+        const comparison = calculateComparisonData(data, previousData, dateRange, previousRange)
+        if (!cancelled) setComparisonData(comparison)
+      } catch {
+        if (!cancelled) setComparisonData(null)
+      }
+    }
+    run()
+    return () => { cancelled = true }
+  }, [dateRange, comparisonMode, data])
+
+  const handleRetry = () => mutate()
 
   const memoizedKPIs = useMemo((): KpiItem[] => {
     if (!data?.kpis) return []
@@ -214,20 +168,7 @@ const DashboardContent = memo(function DashboardContent() {
   }, [chargesData?.breakdown])
 
 
-  useEffect(() => {
-    const isInitial = data === null && chargesData === null && evolutionData === null
-    loadDashboardData(isInitial)
-  }, [loadDashboardData])
-
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') loadDashboardData()
-    }
-    document.addEventListener('visibilitychange', handleVisibilityChange)
-    return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
-  }, [loadDashboardData])
-
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="space-y-6 sm:space-y-8">
         <div className="flex items-center justify-between">
@@ -255,12 +196,12 @@ const DashboardContent = memo(function DashboardContent() {
     )
   }
 
-  if (!data) {
+  if (error || (!isLoading && !data)) {
     return (
       <div className="bg-destructive/10 border border-destructive/30 rounded-xl p-4 liquid-glass-card">
         <p className="text-destructive font-medium">Erreur lors du chargement des données</p>
         <button
-          onClick={() => loadDashboardData(true)}
+          onClick={handleRetry}
           className="mt-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 transition-opacity"
         >
           Réessayer
@@ -269,7 +210,7 @@ const DashboardContent = memo(function DashboardContent() {
     )
   }
 
-  const serviceDistributionForServices = (data.serviceDistribution || []).map((d) => ({
+  const serviceDistributionForServices = (data?.serviceDistribution || []).map((d) => ({
     name: d.serviceName,
     value: d.caHt,
   }))
@@ -281,7 +222,7 @@ const DashboardContent = memo(function DashboardContent() {
         setDateRange={setDateRange}
         comparisonMode={comparisonMode}
         setComparisonMode={setComparisonMode}
-        refreshing={refreshing}
+        refreshing={isValidating}
       />
 
       <DashboardKPIs kpis={memoizedKPIs} />

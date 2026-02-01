@@ -9,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Eye, EyeOff, Loader2 } from 'lucide-react'
+import { toast } from 'sonner'
 
 function LoginContent() {
   const [email, setEmail] = useState('')
@@ -30,7 +31,9 @@ function LoginContent() {
   useEffect(() => {
     const err = searchParams.get('error')
     if (err === 'invalid_credentials') {
-      setError('Email ou mot de passe incorrect')
+      const msg = 'Email ou mot de passe incorrect'
+      setError(msg)
+      toast.error('Connexion', { description: msg })
     }
   }, [searchParams])
 
@@ -46,9 +49,13 @@ function LoginContent() {
         router.replace('/dashboard')
         return
       }
-      setError('Email ou mot de passe incorrect')
+      const msg = 'Email ou mot de passe incorrect'
+      setError(msg)
+      toast.error('Connexion', { description: msg })
     } catch {
-      setError('Erreur de connexion')
+      const msg = 'Erreur de connexion'
+      setError(msg)
+      toast.error('Connexion', { description: msg })
     } finally {
       setLoading(false)
     }

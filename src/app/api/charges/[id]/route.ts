@@ -1,19 +1,18 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
+import { ZodError } from 'zod'
 
 import { prisma } from '@/lib/db'
-import { getCurrentUser } from '@/lib/auth'
+import { requireAuth, zodErrorResponse, apiError } from '@/lib/api-utils'
 import { updateChargeSchema } from '@/lib/validations'
 
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  try {
-    const user = await getCurrentUser(request)
-    if (!user) {
-      return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
-    }
+  const { user, response: authResponse } = await requireAuth(request)
+  if (authResponse) return authResponse
 
+  try {
     const body = await request.json()
     const { id } = await params
 
@@ -23,7 +22,7 @@ export async function PUT(
     })
 
     if (!existingCharge || existingCharge.userId !== user.id) {
-      return NextResponse.json({ error: 'Charge non trouvée' }, { status: 404 })
+      return apiError('Charge non trouvée', 404)
     }
     
     // Pour les mises à jour partielles, on ne met à jour que les champs fournis
@@ -56,22 +55,13 @@ export async function PUT(
       // Relations supprimées pour éviter les erreurs de contraintes
     })
 
-    return NextResponse.json(charge)
+    return Response.json(charge)
   } catch (error) {
-    console.error('Error updating charge:', error)
-    
-    // Handle foreign key constraint violations
+    if (error instanceof ZodError) return zodErrorResponse(error)
     if (error instanceof Error && error.message.includes('Foreign key constraint violated')) {
-      return NextResponse.json(
-        { message: 'Le service lié n\'existe pas ou a été supprimé' },
-        { status: 400 }
-      )
+      return apiError('Le service lié n\'existe pas ou a été supprimé', 400)
     }
-    
-    return NextResponse.json(
-      { message: 'Failed to update charge', error: (error as Error).message },
-      { status: 500 }
-    )
+    return apiError(error instanceof Error ? error.message : 'Erreur lors de la mise à jour de la charge', 500)
   }
 }
 
@@ -79,30 +69,24 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  try {
-    const user = await getCurrentUser(request)
-    if (!user) {
-      return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
-    }
+  const { user, response: authResponse } = await requireAuth(request)
+  if (authResponse) return authResponse
 
+  try {
     const { id } = await params
     const existingCharge = await prisma.charge.findUnique({
       where: { id },
     })
     if (!existingCharge || existingCharge.userId !== user.id) {
-      return NextResponse.json({ error: 'Charge non trouvée' }, { status: 404 })
+      return apiError('Charge non trouvée', 404)
     }
 
     await prisma.charge.delete({
       where: { id },
     })
 
-    return NextResponse.json({ success: true })
+    return Response.json({ success: true })
   } catch (error) {
-    console.error('Error deleting charge:', error)
-    return NextResponse.json(
-      { message: 'Failed to delete charge', error: (error as Error).message },
-      { status: 500 }
-    )
+    return apiError(error instanceof Error ? error.message : 'Erreur lors de la suppression de la charge', 500)
   }
 }

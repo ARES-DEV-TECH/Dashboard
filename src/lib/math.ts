@@ -1,9 +1,9 @@
 // Utility functions for calculations
 
+/** Format par défaut (préférer l’API GET /api/sales/next-invoice-no pour le prochain numéro). */
 export function generateInvoiceNumber(): string {
   const year = new Date().getFullYear()
-  const timestamp = Date.now().toString().slice(-6)
-  return `F${year}-${timestamp}`
+  return `F${year}-000001`
 }
 
 /**

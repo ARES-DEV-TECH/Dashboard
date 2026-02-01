@@ -1,7 +1,8 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
+import { ZodError } from 'zod'
 
 import { prisma } from '@/lib/db'
-import { getCurrentUser } from '@/lib/auth'
+import { requireAuth, zodErrorResponse, apiError } from '@/lib/api-utils'
 import { updateSaleSchema } from '@/lib/validations'
 import { calculateSaleAmounts } from '@/lib/math'
 
@@ -9,25 +10,25 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ invoiceNo: string }> }
 ) {
-  try {
-    const user = await getCurrentUser(request)
-    if (!user) {
-      return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
-    }
+  const { user, response: authResponse } = await requireAuth(request)
+  if (authResponse) return authResponse
 
+  try {
     const body = await request.json()
     const raw = (await params).invoiceNo
     const invoiceNo = typeof raw === 'string' ? decodeURIComponent(raw).trim() : ''
     if (!invoiceNo) {
-      return NextResponse.json({ error: 'Numéro de facture manquant' }, { status: 400 })
+      return apiError('Numéro de facture manquant', 400)
     }
 
-    // Validate first with the schema (expects string)
-    const validatedData = updateSaleSchema.parse(body)
+    // Retirer les champs recalculés côté API pour éviter toute erreur Zod si le front les envoie (undefined/null)
+    const { caHt, tvaAmount, totalTtc, year, ...bodyForValidation } = body as Record<string, unknown>
+    const validatedData = updateSaleSchema.parse(bodyForValidation)
 
-    // Then convert saleDate string to Date for Prisma
+    // Don't include invoiceNo in update data: we update by invoiceNo (URL), changing it would cause unique constraint errors
+    const { invoiceNo: _ignored, ...restValidated } = validatedData
     const updateData = {
-      ...validatedData,
+      ...restValidated,
       saleDate: new Date(validatedData.saleDate)
     }
 
@@ -45,11 +46,11 @@ export async function PUT(
     }
 
     const existingSale = await prisma.sale.findUnique({
-      where: { invoiceNo },
+      where: { userId_invoiceNo: { userId: user.id, invoiceNo } },
       select: { userId: true },
     })
     if (!existingSale || existingSale.userId !== user.id) {
-      return NextResponse.json({ error: 'Vente non trouvée' }, { status: 404 })
+      return apiError('Vente non trouvée', 404)
     }
 
     // Taux TVA de l'utilisateur (en base)
@@ -67,7 +68,7 @@ export async function PUT(
     )
 
     const sale = await prisma.sale.update({
-      where: { invoiceNo },
+      where: { userId_invoiceNo: { userId: user.id, invoiceNo } },
       data: {
         ...updateData,
         ...amounts,
@@ -75,16 +76,13 @@ export async function PUT(
       },
     })
 
-    return NextResponse.json({ sale })
+    return Response.json({ sale })
   } catch (error) {
-    console.error('Error updating sale:', error)
+    if (error instanceof ZodError) return zodErrorResponse(error)
     if (error instanceof Error && error.message.includes('Record to update not found')) {
-      return NextResponse.json({ message: 'Sale not found' }, { status: 404 })
+      return apiError('Vente non trouvée', 404)
     }
-    return NextResponse.json(
-      { message: 'Failed to update sale', error: (error as Error).message },
-      { status: 500 }
-    )
+    return apiError(error instanceof Error ? error.message : 'Erreur lors de la mise à jour de la vente', 500)
   }
 }
 
@@ -92,38 +90,32 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ invoiceNo: string }> }
 ) {
-  try {
-    const user = await getCurrentUser(request)
-    if (!user) {
-      return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
-    }
+  const { user, response: authResponse } = await requireAuth(request)
+  if (authResponse) return authResponse
 
+  try {
     const raw = (await params).invoiceNo
     const invoiceNo = typeof raw === 'string' ? decodeURIComponent(raw).trim() : ''
     if (!invoiceNo) {
-      return NextResponse.json({ error: 'Numéro de facture manquant' }, { status: 400 })
+      return apiError('Numéro de facture manquant', 400)
     }
     const existing = await prisma.sale.findUnique({
-      where: { invoiceNo },
+      where: { userId_invoiceNo: { userId: user.id, invoiceNo } },
       select: { userId: true },
     })
     if (!existing || existing.userId !== user.id) {
-      return NextResponse.json({ error: 'Vente non trouvée' }, { status: 404 })
+      return apiError('Vente non trouvée', 404)
     }
 
     await prisma.sale.delete({
-      where: { invoiceNo },
+      where: { userId_invoiceNo: { userId: user.id, invoiceNo } },
     })
 
-    return NextResponse.json({ success: true })
+    return Response.json({ success: true })
   } catch (error) {
-    console.error('Error deleting sale:', error)
     if (error instanceof Error && error.message.includes('Record to delete does not exist')) {
-      return NextResponse.json({ message: 'Sale not found' }, { status: 404 })
+      return apiError('Vente non trouvée', 404)
     }
-    return NextResponse.json(
-      { message: 'Failed to delete sale', error: (error as Error).message },
-      { status: 500 }
-    )
+    return apiError(error instanceof Error ? error.message : 'Erreur lors de la suppression de la vente', 500)
   }
 }

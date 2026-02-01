@@ -42,21 +42,33 @@ export interface ComparisonData {
   }
 }
 
+/** Seuil pour considérer une tendance (évite "stable" pour des écarts négligeables) */
+const TREND_THRESHOLD_PCT = 1
+/** Plafond d'affichage pour éviter des % extrêmes quand la période précédente est très faible */
+const DISPLAY_CAP_PCT = 300
+
 export function calculateTrendData(
-  current: number, 
+  current: number,
   previous: number
 ): TrendData {
   const value = current - previous
-  const percentage = previous !== 0 ? (value / previous) * 100 : 0
-  
+  let percentage: number
+  if (previous !== 0 && Number.isFinite(previous)) {
+    percentage = (value / previous) * 100
+  } else {
+    // Période précédente nulle : on donne une tendance directionnelle sans infinie
+    percentage = value > 0 ? 100 : value < 0 ? -100 : 0
+  }
+  const cappedPercentage = Math.max(-DISPLAY_CAP_PCT, Math.min(DISPLAY_CAP_PCT, percentage))
+
   let trend: 'up' | 'down' | 'stable' = 'stable'
-  if (Math.abs(percentage) > 1) { // Seuil de 1% pour considérer une tendance
+  if (Math.abs(percentage) > TREND_THRESHOLD_PCT) {
     trend = percentage > 0 ? 'up' : 'down'
   }
-  
+
   return {
     value,
-    percentage,
+    percentage: cappedPercentage,
     trend
   }
 }

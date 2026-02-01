@@ -1,11 +1,11 @@
 import dynamic from 'next/dynamic'
 import { Skeleton } from '@/components/ui/skeleton'
+import { PageLayout } from '@/components/layout/PageLayout'
 import { DashboardWelcome } from './dashboard-welcome'
 
 const DashboardContent = dynamic(() => import('./dashboard-content').then((m) => ({ default: m.DashboardContent })), {
   loading: () => (
-    <div className="w-full min-w-0 py-4 sm:py-6 pb-12 sm:pb-16 space-y-4 sm:space-y-6">
-      <h1 className="text-2xl sm:text-3xl font-bold text-foreground">Dashboard</h1>
+    <PageLayout title="Dashboard" className="pb-12 sm:pb-16">
       <Skeleton className="h-5 w-40 mt-1" />
       <div className="space-y-6">
         <div className="flex justify-between">
@@ -19,16 +19,15 @@ const DashboardContent = dynamic(() => import('./dashboard-content').then((m) =>
         </div>
         <Skeleton className="h-64 rounded-xl" />
       </div>
-    </div>
+    </PageLayout>
   ),
 })
 
 export default function DashboardPage() {
   return (
-    <div className="w-full min-w-0 py-4 sm:py-6 pb-12 sm:pb-16 space-y-4 sm:space-y-6">
-      <h1 className="text-2xl sm:text-3xl font-bold text-foreground">Dashboard</h1>
+    <PageLayout title="Dashboard" className="pb-12 sm:pb-16">
       <DashboardWelcome />
       <DashboardContent />
-    </div>
+    </PageLayout>
   )
 }

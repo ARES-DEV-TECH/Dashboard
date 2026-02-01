@@ -27,6 +27,8 @@ export interface CompanyInfo {
   email: string
   siret?: string
   logoPath?: string
+  /** Base64 data URL du logo (pour worker / pas de fetch). */
+  logoBase64?: string
 }
 
 const COLORS = {
@@ -56,47 +58,70 @@ function getParam(params: { key: string; value: string }[], key: string, def = '
   return params.find((p) => p.key === key)?.value ?? def
 }
 
-export async function generateQuotePDF(sale: SaleData) {
-  const doc = new jsPDF()
+/** Récupère les paramètres entreprise + logo en base64 (pour worker ou lazy load). */
+export async function getCompanyInfoForPdf(): Promise<CompanyInfo> {
   let companyInfo: CompanyInfo = { name: 'ARES', address: 'Votre entreprise', phone: '', email: '', logoPath: '' }
   try {
     const res = await electronFetch('/api/settings')
     if (res.ok) {
       const data = await res.json()
       const params = data.parameters || []
+      const logoPath = getParam(params, 'logoPath')
       companyInfo = {
         name: getParam(params, 'companyName', 'ARES'),
         address: getParam(params, 'companyAddress', 'Votre entreprise'),
         phone: getParam(params, 'companyPhone'),
         email: getParam(params, 'companyEmail'),
         siret: getParam(params, 'siret'),
-        logoPath: getParam(params, 'logoPath'),
+        logoPath: logoPath || undefined,
+      }
+      if (logoPath) {
+        try {
+          const logoRes = await electronFetch(logoPath)
+          if (logoRes.ok) {
+            const blob = await logoRes.blob()
+            if (blob.size > 0) {
+              companyInfo.logoBase64 = await new Promise<string>((resolve, reject) => {
+                const reader = new FileReader()
+                reader.onload = () => {
+                  const r = reader.result as string
+                  if (r?.startsWith('data:image/')) resolve(r)
+                  else reject(new Error('Image invalide'))
+                }
+                reader.onerror = () => reject(new Error('Erreur lecture logo'))
+                reader.readAsDataURL(blob)
+              })
+            }
+          }
+        } catch {
+          // ignorer
+        }
       }
     }
   } catch (e) {
     console.error('Settings PDF:', e)
   }
+  return companyInfo
+}
 
+/** Génère le PDF devis sans fetch (companyInfo avec logoBase64). Utilisable dans un worker. */
+export async function generateQuotePDFFromData(sale: SaleData, companyInfo: CompanyInfo): Promise<jsPDF> {
+  const doc = new jsPDF()
   await drawHeader(doc, companyInfo, 'DEVIS')
   const companyY = await drawCompanyInfo(doc, companyInfo, 60)
   const clientY = drawClientInfo(doc, sale, companyY + SPACING.section)
-  
-  // === QUOTE DETAILS SECTION ===
   const detailsY = drawQuoteDetails(doc, sale, clientY + SPACING.section)
-  
-  // === SERVICES TABLE ===
   const tableY = drawServicesTable(doc, sale, detailsY + SPACING.section)
-  
-  // === TOTALS SECTION ===
   const totalsY = drawTotalsSection(doc, sale, tableY + SPACING.section)
-  
-  // === FOOTER ===
   drawFooter(doc, companyInfo, totalsY + SPACING.section)
-  
-  // === SAVE PDF ===
+  return doc
+}
+
+export async function generateQuotePDF(sale: SaleData) {
+  const companyInfo = await getCompanyInfoForPdf()
+  const doc = await generateQuotePDFFromData(sale, companyInfo)
   const fileName = `devis-${sale.invoiceNo || 'devis'}-${sale.clientName || 'client'}.pdf`
   doc.save(fileName)
-  
   return doc
 }
 
@@ -105,60 +130,44 @@ async function drawHeader(doc: jsPDF, companyInfo: CompanyInfo, documentType: st
   doc.setFillColor(26, 26, 26) // #1A1A1A
   doc.rect(0, 0, 210, 50, 'F')
   
-  // Logo de l'entreprise (si disponible)
-  if (companyInfo.logoPath) {
+  // Logo : logoBase64 (worker / pas de fetch) ou fetch depuis logoPath
+  let logoBase64: string | undefined = companyInfo.logoBase64
+  if (!logoBase64 && companyInfo.logoPath) {
     try {
       const logoResponse = await electronFetch(companyInfo.logoPath)
       if (logoResponse.ok) {
         const logoBlob = await logoResponse.blob()
-        
-        // Vérifier que le blob n'est pas vide et a un type valide
         if (logoBlob.size > 0 && (logoBlob.type.includes('png') || logoBlob.type.includes('jpeg') || logoBlob.type.includes('jpg') || logoBlob.type.includes('svg'))) {
-          const logoBase64 = await new Promise<string>((resolve, reject) => {
+          logoBase64 = await new Promise<string>((resolve, reject) => {
             const reader = new FileReader()
             reader.onload = () => {
               const result = reader.result as string
-              // Vérifier que les données Base64 sont valides
-              if (result && result.startsWith('data:image/')) {
-                resolve(result)
-              } else {
-                reject(new Error('Données d\'image invalides'))
-              }
+              if (result && result.startsWith('data:image/')) resolve(result)
+              else reject(new Error('Données d\'image invalides'))
             }
             reader.onerror = () => reject(new Error('Erreur de lecture du logo'))
             reader.readAsDataURL(logoBlob)
           })
-          
-          // Logo en haut à droite avec bordure dorée
-          doc.setDrawColor(102, 126, 234) // #667eea
-          doc.setLineWidth(2)
-          doc.rect(145, 8, 32, 32)
-          
-          // Déterminer le format d'image à partir des données Base64
-          let imageFormat = 'JPEG' // Format par défaut
-          if (logoBase64.includes('data:image/png')) {
-            imageFormat = 'PNG'
-          } else if (logoBase64.includes('data:image/svg')) {
-            imageFormat = 'SVG'
-          }
-          
-          try {
-            doc.addImage(logoBase64, imageFormat, 147, 10, 28, 28)
-          } catch (imageError) {
-            console.warn('Erreur lors de l\'ajout de l\'image:', imageError)
-            // Si l'ajout de l'image échoue, continuer sans le logo
-          }
-        } else {
-          console.warn('Logo invalide ou format non supporté:', logoBlob.type, logoBlob.size)
         }
-      } else {
-        console.warn('Impossible de récupérer le logo:', logoResponse.status)
       }
     } catch (error) {
       console.error('Erreur lors du chargement du logo:', error)
     }
   }
-  
+  if (logoBase64) {
+    try {
+      doc.setDrawColor(102, 126, 234)
+      doc.setLineWidth(2)
+      doc.rect(145, 8, 32, 32)
+      let imageFormat: 'JPEG' | 'PNG' | 'SVG' = 'JPEG'
+      if (logoBase64.includes('data:image/png')) imageFormat = 'PNG'
+      else if (logoBase64.includes('data:image/svg')) imageFormat = 'SVG'
+      doc.addImage(logoBase64, imageFormat, 147, 10, 28, 28)
+    } catch (imageError) {
+      console.warn('Erreur lors de l\'ajout de l\'image:', imageError)
+    }
+  }
+
   // Titre du document
   doc.setTextColor(102, 126, 234) // #667eea
   doc.setFontSize(FONTS.title.size)
@@ -312,7 +321,8 @@ function drawServicesTable(doc: jsPDF, sale: SaleData, startY: number): number {
   
   // En-tête du tableau (bleu/violet foncé)
   const tableTop = currentY
-  const colWidths = [80, 20, 30, 30, 30] // Description, Qté, Prix HT, TVA, Total
+  // Largeurs total 170 pour ne pas dépasser le cadre (évite colonne Total coupée)
+  const colWidths = [70, 18, 28, 28, 26] // Description, Qté, Prix HT, TVA, Total
   const headerHeight = 12
   
   doc.setFillColor(76, 81, 191) // secondaryDark #4c51bf
@@ -414,16 +424,21 @@ function drawTotalsSection(doc: jsPDF, sale: SaleData, startY: number): number {
   
   currentY += 10
   
+  const caHt = Number(sale.caHt) || 0
+  const tvaAmt = Number(sale.tvaAmount) || 0
+  let ttc = Number(sale.totalTtc) || 0
+  if (!Number.isFinite(ttc)) ttc = caHt + tvaAmt
+  
   doc.setTextColor(COLORS.text)
   doc.setFontSize(FONTS.body.size)
   doc.setFont('helvetica', 'normal')
   doc.text('CA HT:', totalsX + 5, currentY)
-  doc.text(`${(sale.caHt || 0).toFixed(2)}€`, totalsX + totalsWidth - 8, currentY)
+  doc.text(`${caHt.toFixed(2)}€`, totalsX + totalsWidth - 8, currentY)
   currentY += SPACING.line
   
-  if ((sale.tvaRate || 0) > 0) {
+  if ((Number(sale.tvaRate) || 0) > 0) {
     doc.text(`TVA (${sale.tvaRate || 0}%):`, totalsX + 5, currentY)
-    doc.text(`${(sale.tvaAmount || 0).toFixed(2)}€`, totalsX + totalsWidth - 8, currentY)
+    doc.text(`${tvaAmt.toFixed(2)}€`, totalsX + totalsWidth - 8, currentY)
     currentY += SPACING.line
   }
   
@@ -436,7 +451,7 @@ function drawTotalsSection(doc: jsPDF, sale: SaleData, startY: number): number {
   doc.setFontSize(FONTS.large.size)
   doc.setTextColor(102, 126, 234)
   doc.text('TOTAL TTC:', totalsX + 5, currentY)
-  doc.text(`${(sale.totalTtc || 0).toFixed(2)}€`, totalsX + totalsWidth - 8, currentY)
+  doc.text(`${ttc.toFixed(2)}€`, totalsX + totalsWidth - 8, currentY)
   
   return currentY + 12
 }
@@ -479,47 +494,29 @@ function drawFooter(doc: jsPDF, companyInfo: CompanyInfo, startY: number) {
   doc.text('Merci pour votre confiance !', SPACING.margin, footerY + 20)
 }
 
-export async function generateInvoicePDF(sale: SaleData | SaleData[]) {
+/** Génère le PDF facture sans fetch (companyInfo avec logoBase64). Utilisable dans un worker. */
+export async function generateInvoicePDFFromData(sale: SaleData | SaleData[], companyInfo: CompanyInfo): Promise<jsPDF> {
   const doc = new jsPDF()
   const sales = Array.isArray(sale) ? sale : [sale]
   const firstSale = sales[0]
-  
-  let companyInfo: CompanyInfo = { name: 'ARES', address: 'Votre entreprise', phone: '', email: '', logoPath: '' }
-  try {
-    const res = await electronFetch('/api/settings')
-    if (res.ok) {
-      const data = await res.json()
-      const params = data.parameters || []
-      companyInfo = {
-        name: getParam(params, 'companyName', 'ARES'),
-        address: getParam(params, 'companyAddress', 'Votre entreprise'),
-        phone: getParam(params, 'companyPhone'),
-        email: getParam(params, 'companyEmail'),
-        siret: getParam(params, 'siret'),
-        logoPath: getParam(params, 'logoPath'),
-      }
-    }
-  } catch (e) {
-    console.error('Settings PDF:', e)
-  }
-
   await drawHeader(doc, companyInfo, 'FACTURE')
   const companyY = await drawCompanyInfo(doc, companyInfo, 60)
   const clientY = drawClientInfo(doc, firstSale, companyY + SPACING.section)
   const detailsY = drawInvoiceDetails(doc, firstSale, clientY + SPACING.section)
   const tableY = drawInvoiceTable(doc, sales, detailsY + SPACING.section)
   const totalsY = drawInvoiceTotals(doc, sales, tableY + SPACING.section)
-  
-  // === PAYMENT INFO ===
   const paymentY = drawPaymentInfo(doc, companyInfo, totalsY + SPACING.section)
-  
-  // === FOOTER ===
   drawFooter(doc, companyInfo, paymentY + SPACING.section)
-  
-  // === SAVE PDF ===
+  return doc
+}
+
+export async function generateInvoicePDF(sale: SaleData | SaleData[]) {
+  const sales = Array.isArray(sale) ? sale : [sale]
+  const firstSale = sales[0]
+  const companyInfo = await getCompanyInfoForPdf()
+  const doc = await generateInvoicePDFFromData(sale, companyInfo)
   const fileName = `facture-${firstSale.invoiceNo || 'facture'}-${firstSale.clientName || 'client'}.pdf`
   doc.save(fileName)
-  
   return doc
 }
 
@@ -569,9 +566,9 @@ function drawInvoiceTable(doc: jsPDF, sales: SaleData[], startY: number): number
   
   currentY += SPACING.line
   
-  // En-tête du tableau (bleu/violet foncé)
+  // En-tête du tableau (bleu/violet foncé) — largeurs total 170 pour éviter colonne Total coupée
   const tableTop = currentY
-  const colWidths = [80, 20, 30, 30, 30]
+  const colWidths = [70, 18, 28, 28, 26]
   const headerHeight = 12
   
   doc.setFillColor(76, 81, 191) // secondaryDark #4c51bf
@@ -649,10 +646,11 @@ function drawInvoiceTable(doc: jsPDF, sales: SaleData[], startY: number): number
 }
 
 function drawInvoiceTotals(doc: jsPDF, sales: SaleData[], startY: number): number {
-  const totalCaHt = sales.reduce((sum, sale) => sum + (sale.caHt || 0), 0)
-  const totalTva = sales.reduce((sum, sale) => sum + (sale.tvaAmount || 0), 0)
-  const totalTtc = sales.reduce((sum, sale) => sum + (sale.totalTtc || 0), 0)
-  const tvaRate = sales.length > 0 ? (sales[0].tvaRate || 0) : 0
+  const totalCaHt = sales.reduce((sum, sale) => sum + (Number(sale.caHt) || 0), 0)
+  const totalTva = sales.reduce((sum, sale) => sum + (Number(sale.tvaAmount) || 0), 0)
+  let totalTtc = sales.reduce((sum, sale) => sum + (Number(sale.totalTtc) || 0), 0)
+  if (!Number.isFinite(totalTtc) || totalTtc === 0) totalTtc = totalCaHt + totalTva
+  const tvaRate = sales.length > 0 ? (Number(sales[0].tvaRate) || 0) : 0
   
   let currentY = startY
   

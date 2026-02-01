@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { useAuth } from './auth-provider'
 import { Button } from '@/components/ui/button'
@@ -25,6 +25,7 @@ export function Navigation() {
 
 export function NavLinks() {
   const pathname = usePathname()
+  const router = useRouter()
 
   const linkClass = (isActive: boolean) =>
     cn(
@@ -46,7 +47,12 @@ export function NavLinks() {
             const isActive = pathname === item.href
             return (
               <li key={item.name}>
-                <Link href={item.href} prefetch className={linkClass(isActive)}>
+                <Link
+                  href={item.href}
+                  prefetch
+                  onMouseEnter={() => router.prefetch(item.href)}
+                  className={linkClass(isActive)}
+                >
                   <item.icon className="h-5 w-5 shrink-0 opacity-90" aria-hidden />
                   <span className="truncate">{item.name}</span>
                 </Link>
@@ -66,7 +72,12 @@ export function NavLinks() {
             const isActive = pathname === item.href
             return (
               <li key={item.name}>
-                <Link href={item.href} prefetch className={linkClass(isActive)}>
+                <Link
+                  href={item.href}
+                  prefetch
+                  onMouseEnter={() => router.prefetch(item.href)}
+                  className={linkClass(isActive)}
+                >
                   <item.icon className="h-5 w-5 shrink-0 opacity-90" aria-hidden />
                   <span className="truncate">{item.name}</span>
                 </Link>

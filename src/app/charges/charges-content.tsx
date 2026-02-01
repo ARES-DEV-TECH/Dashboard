@@ -1,21 +1,27 @@
 "use client"
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
+import useSWR from 'swr'
 import { DataTable, Column } from '@/components/ui/data-table'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Charge, Client } from '@/lib/validations'
 import { generateCSV, downloadCSV } from '@/lib/csv'
 import { electronFetch } from '@/lib/electron-api'
+import { toast } from 'sonner'
+import { safeErrorMessage } from '@/lib/utils'
 import { Skeleton } from '@/components/ui/skeleton'
 import { ChargeFormModal } from './components/ChargeFormModal'
+import { SWR_KEYS, fetchCharges, fetchArticles, fetchClients } from '@/lib/swr-fetchers'
 
 export function ChargesContent() {
-  const [charges, setCharges] = useState<Charge[]>([])
-  const [articles, setArticles] = useState<Array<{ serviceName: string }>>([])
-  const [clients, setClients] = useState<Client[]>([])
-  const [loading, setLoading] = useState(true)
-  const [dataLoaded, setDataLoaded] = useState(false)
+  const { data: chargesData, error: chargesError, isLoading: chargesLoading, mutate: mutateCharges } = useSWR(SWR_KEYS.charges, fetchCharges, { revalidateOnFocus: false, dedupingInterval: 5000 })
+  const { data: articles = [], isLoading: articlesLoading } = useSWR(SWR_KEYS.articles, fetchArticles, { revalidateOnFocus: false, dedupingInterval: 5000 })
+  const { data: clients = [], isLoading: clientsLoading } = useSWR(SWR_KEYS.clients, fetchClients, { revalidateOnFocus: false, dedupingInterval: 5000 })
+
+  const charges = chargesData?.charges ?? []
+  const loading = chargesLoading || articlesLoading || clientsLoading
+
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingCharge, setEditingCharge] = useState<Charge | null>(null)
   const [formData, setFormData] = useState({
@@ -33,51 +39,47 @@ export function ChargesContent() {
     year: new Date().getFullYear(),
   })
 
-  useEffect(() => {
-    loadData()
-  }, [])
-
-  const loadData = async () => {
-    try {
-      setLoading(true)
-      const [chargesRes, articlesRes, clientsRes] = await Promise.all([
-        electronFetch('/api/charges'),
-        electronFetch('/api/articles'),
-        electronFetch('/api/clients')
-      ])
-      
-      const [chargesData, articlesData, clientsData] = await Promise.all([
-        chargesRes.json(),
-        articlesRes.json(),
-        clientsRes.json()
-      ])
-      
-      setCharges(chargesData.charges || [])
-      setArticles(articlesData || [])
-      setClients(clientsData || [])
-      setDataLoaded(true)
-    } catch (error) {
-      console.error('Failed to load data:', error)
-    } finally {
-      setLoading(false)
-    }
-  }
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    const chargeData = {
+      ...formData,
+      expenseDate: new Date(formData.expenseDate),
+      amount: Number(formData.amount) || null,
+      linkedService: formData.linkedService === '' || formData.linkedService === 'none' ? null : formData.linkedService,
+      linkedClient: formData.linkedClient === '' || formData.linkedClient === 'none' ? null : formData.linkedClient,
+      year: new Date(formData.expenseDate).getFullYear(),
+    }
+
+    const url = editingCharge ? `/api/charges/${editingCharge.id}` : '/api/charges'
+    const method = editingCharge ? 'PUT' : 'POST'
+    const previousCharges = [...charges]
+
+    const optimisticCharge: Charge = {
+      id: editingCharge?.id ?? `temp-${Date.now()}`,
+      expenseDate: new Date(formData.expenseDate),
+      amount: chargeData.amount ?? 0,
+      category: formData.category,
+      vendor: formData.vendor,
+      description: formData.description,
+      recurringType: (formData.recurringType || 'ponctuel') as 'mensuel' | 'annuel' | 'ponctuel',
+      paymentMethod: formData.paymentMethod,
+      notes: formData.notes,
+      linkedService: chargeData.linkedService ?? undefined,
+      linkedClient: chargeData.linkedClient ?? undefined,
+      linkedSaleId: undefined,
+      year: chargeData.year,
+    }
+
+    if (editingCharge) {
+      const optimistic = charges.map(c =>
+        c.id === editingCharge.id ? { ...c, ...optimisticCharge, id: editingCharge.id } : c
+      )
+      mutateCharges({ charges: optimistic, pagination: chargesData?.pagination }, { revalidate: false })
+    } else {
+      mutateCharges({ charges: [...charges, optimisticCharge], pagination: chargesData?.pagination }, { revalidate: false })
+    }
+
     try {
-      const chargeData = {
-        ...formData,
-        expenseDate: new Date(formData.expenseDate),
-        amount: Number(formData.amount) || null,
-        linkedService: formData.linkedService === '' || formData.linkedService === 'none' ? null : formData.linkedService,
-        linkedClient: formData.linkedClient === '' || formData.linkedClient === 'none' ? null : formData.linkedClient,
-        year: new Date(formData.expenseDate).getFullYear(),
-      }
-
-      const url = editingCharge ? `/api/charges/${editingCharge.id}` : '/api/charges'
-      const method = editingCharge ? 'PUT' : 'POST'
-
       const response = await electronFetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
@@ -85,17 +87,20 @@ export function ChargesContent() {
       })
 
       if (response.ok) {
-        await loadData()
+        await mutateCharges()
         resetForm()
         setIsDialogOpen(false)
         setEditingCharge(null)
+        toast.success('Charges', { description: editingCharge ? 'Charge mise à jour.' : 'Charge enregistrée.' })
       } else {
-        const error = await response.json()
-        alert(`Erreur: ${error.message}`)
+        mutateCharges({ charges: previousCharges, pagination: chargesData?.pagination }, { revalidate: false })
+        const err = await response.json()
+        toast.error('Charges', { description: err?.error ?? err?.message ?? 'Erreur lors de la sauvegarde' })
       }
     } catch (error) {
       console.error('Error saving charge:', error)
-      alert('Erreur lors de la sauvegarde')
+      mutateCharges({ charges: previousCharges, pagination: chargesData?.pagination }, { revalidate: false })
+      toast.error('Charges', { description: safeErrorMessage(error, 'Erreur lors de la sauvegarde') })
     }
   }
 
@@ -132,21 +137,24 @@ export function ChargesContent() {
 
   const handleDelete = async (charge: Charge) => {
     if (!confirm(`Supprimer la charge ${charge.id} ?`)) return
-
+    const previousCharges = [...charges]
+    mutateCharges({ charges: charges.filter(c => c.id !== charge.id), pagination: chargesData?.pagination }, { revalidate: false })
     try {
       const response = await electronFetch(`/api/charges/${charge.id}`, {
         method: 'DELETE',
       })
-
       if (response.ok) {
-        await loadData()
+        await mutateCharges()
+        toast.success('Charges', { description: 'Charge supprimée.' })
       } else {
-        const error = await response.json()
-        alert(`Erreur: ${error.message}`)
+        mutateCharges({ charges: previousCharges, pagination: chargesData?.pagination }, { revalidate: false })
+        const err = await response.json()
+        toast.error('Charges', { description: err?.error ?? err?.message ?? 'Erreur lors de la suppression' })
       }
     } catch (error) {
       console.error('Error deleting charge:', error)
-      alert('Erreur lors de la suppression')
+      mutateCharges({ charges: previousCharges, pagination: chargesData?.pagination }, { revalidate: false })
+      toast.error('Charges', { description: safeErrorMessage(error, 'Erreur lors de la suppression') })
     }
   }
 
@@ -285,6 +293,7 @@ export function ChargesContent() {
         onEdit={handleEdit}
         onDelete={handleDelete}
         onExport={handleExport}
+        virtualized
       />
 
       <ChargeFormModal
@@ -296,7 +305,7 @@ export function ChargesContent() {
         editingCharge={editingCharge}
         articles={articles}
         clients={clients}
-        dataLoaded={dataLoaded}
+        dataLoaded={!loading}
         onReset={resetForm}
       />
     </div>

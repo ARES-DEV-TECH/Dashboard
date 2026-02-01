@@ -4,6 +4,7 @@ import { prisma } from '@/lib/db'
 import { getCurrentUser } from '@/lib/auth'
 import { createSaleSchema } from '@/lib/validations'
 import { calculateSaleAmounts } from '@/lib/math'
+import { getNextInvoiceNumber } from '@/lib/invoice-number'
 import { ZodError } from 'zod'
 
 const salesCache = new Map<string, { data: unknown; timestamp: number }>()
@@ -101,8 +102,14 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const validatedData = createSaleSchema.parse(body)
 
+    const yearForSeq = new Date(validatedData.saleDate).getFullYear()
+    const rawNo = validatedData.invoiceNo?.trim() ?? ''
+    const invoiceNo = rawNo
+      ? rawNo
+      : await getNextInvoiceNumber(prisma, user.id, yearForSeq)
+
     const existingSale = await prisma.sale.findFirst({
-      where: { invoiceNo: validatedData.invoiceNo, userId: user.id }
+      where: { userId: user.id, invoiceNo },
     })
 
     if (existingSale) {
@@ -145,7 +152,7 @@ export async function POST(request: NextRequest) {
         ...amounts,
         saleDate: new Date(validatedData.saleDate),
         year: new Date(validatedData.saleDate).getFullYear(),
-        invoiceNo: validatedData.invoiceNo,
+        invoiceNo,
         userId: user.id,
       }
     })

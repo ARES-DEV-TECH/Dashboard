@@ -3,6 +3,7 @@ import { Inter } from 'next/font/google'
 import './globals.css'
 import { AuthProvider } from '@/components/auth-provider'
 import { AppLayout } from '@/components/layout/AppLayout'
+import { Toaster } from '@/components/toaster'
 
 const inter = Inter({ variable: '--font-sans-app', subsets: ['latin'], display: 'swap' })
 
@@ -20,6 +21,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       <body className={`${inter.variable} font-sans antialiased`}>
         <AuthProvider>
           <AppLayout>{children}</AppLayout>
+          <Toaster />
         </AuthProvider>
       </body>
     </html>

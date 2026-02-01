@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
+import useSWR from 'swr'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -8,8 +9,11 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Separator } from '@/components/ui/separator'
 import { electronFetch } from '@/lib/electron-api'
+import { toast } from 'sonner'
+import { safeErrorMessage } from '@/lib/utils'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Building2, Euro, FileText, Download, Trash2, Upload, Image } from 'lucide-react'
+import { SWR_KEYS, fetchSettings } from '@/lib/swr-fetchers'
 
 interface ParametresEntreprise {
   key: string
@@ -17,34 +21,13 @@ interface ParametresEntreprise {
 }
 
 export function SettingsContent() {
-  const [parameters, setParameters] = useState<ParametresEntreprise[]>([])
-  const [loading, setLoading] = useState(true)
+  const { data, error, isLoading, mutate } = useSWR(SWR_KEYS.settings, fetchSettings)
   const [editingParam, setEditingParam] = useState<string | null>(null)
   const [newValue, setNewValue] = useState('')
-  const [logoPath, setLogoPath] = useState<string>('')
   const [uploading, setUploading] = useState(false)
 
-  useEffect(() => {
-    loadParameters()
-  }, [])
-
-  const loadParameters = async () => {
-    try {
-      setLoading(true)
-      const res = await electronFetch('/api/settings')
-      if (res.ok) {
-        const data = await res.json()
-        const params = data.parameters || []
-        setParameters(params)
-        const logo = params.find((p: ParametresEntreprise) => p.key === 'logoPath')
-        if (logo) setLogoPath(logo.value)
-      }
-    } catch (e) {
-      console.error('Settings:', e)
-    } finally {
-      setLoading(false)
-    }
-  }
+  const parameters: ParametresEntreprise[] = data?.parameters ?? []
+  const logoPath = parameters.find(p => p.key === 'logoPath')?.value ?? ''
 
   const handleUpdateParameter = async (key: string, value: string) => {
     try {
@@ -54,17 +37,17 @@ export function SettingsContent() {
         body: JSON.stringify({ key, value }),
       })
       if (res.ok) {
-        await loadParameters()
+        await mutate()
         setEditingParam(null)
         setNewValue('')
       } else {
         const err = await res.json().catch(() => ({}))
         const msg = err.error || err.message || (typeof err.details === 'string' ? err.details : `Erreur ${res.status}`)
-        alert(`Erreur: ${msg}`)
+        toast.error('Paramètres', { description: msg })
       }
-    } catch (e: any) {
+    } catch (e) {
       console.error('Settings:', e)
-      alert(`Erreur: ${e.message || 'inconnue'}`)
+      toast.error('Paramètres', { description: safeErrorMessage(e, 'Erreur inconnue') })
     }
   }
 
@@ -83,7 +66,7 @@ export function SettingsContent() {
       document.body.removeChild(a)
     } catch (e) {
       console.error('Export:', e)
-      alert("Erreur lors de l'export")
+      toast.error('Paramètres', { description: "Erreur lors de l'export" })
     }
   }
 
@@ -97,14 +80,12 @@ export function SettingsContent() {
       const res = await electronFetch('/api/upload-logo', { method: 'POST', body: fd })
 
       if (res.ok) {
-        const data = await res.json()
-        setLogoPath(data.logoPath)
-        alert('Logo uploadé avec succès!')
-        loadParameters()
-      } else alert(`Erreur: ${(await res.json()).error}`)
+        toast.success('Paramètres', { description: 'Logo uploadé avec succès !' })
+        await mutate()
+      } else toast.error('Paramètres', { description: (await res.json()).error })
     } catch (e) {
       console.error('Logo:', e)
-      alert("Erreur lors de l'upload du logo")
+      toast.error('Paramètres', { description: "Erreur lors de l'upload du logo" })
     } finally {
       setUploading(false)
     }
@@ -115,13 +96,12 @@ export function SettingsContent() {
     try {
       const res = await electronFetch('/api/upload-logo', { method: 'DELETE' })
       if (res.ok) {
-        setLogoPath('')
-        alert('Logo supprimé !')
-        loadParameters()
-      } else alert('Erreur lors de la suppression')
+        toast.success('Paramètres', { description: 'Logo supprimé !' })
+        await mutate()
+      } else toast.error('Paramètres', { description: 'Erreur lors de la suppression' })
     } catch (e) {
       console.error('Logo:', e)
-      alert('Erreur suppression logo')
+      toast.error('Paramètres', { description: 'Erreur suppression logo' })
     }
   }
 
@@ -139,12 +119,12 @@ export function SettingsContent() {
           body: JSON.stringify(data),
         })
         if (res.ok) {
-          alert('Import réussi !')
+          toast.success('Paramètres', { description: 'Import réussi !' })
           window.location.reload()
-        } else alert("Erreur lors de l'import")
+        } else toast.error('Paramètres', { description: "Erreur lors de l'import" })
       } catch (err) {
         console.error('Import:', err)
-        alert("Erreur lors de l'import")
+        toast.error('Paramètres', { description: "Erreur lors de l'import" })
       }
     }
     reader.readAsText(file)
@@ -155,12 +135,12 @@ export function SettingsContent() {
     try {
       const res = await electronFetch('/api/reset', { method: 'POST' })
       if (res.ok) {
-        alert('Base réinitialisée !')
+        toast.success('Paramètres', { description: 'Base réinitialisée !' })
         window.location.reload()
-      } else alert('Erreur réinitialisation')
+      } else toast.error('Paramètres', { description: 'Erreur réinitialisation' })
     } catch (e) {
       console.error('Reset:', e)
-      alert('Erreur réinitialisation')
+      toast.error('Paramètres', { description: 'Erreur réinitialisation' })
     }
   }
 
@@ -169,7 +149,7 @@ export function SettingsContent() {
     return param?.value || ''
   }
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="space-y-6">
         <Skeleton className="h-9 w-48" />
@@ -177,6 +157,20 @@ export function SettingsContent() {
           {Array.from({ length: 4 }).map((_, i) => (
             <Skeleton key={i} className="h-64 rounded-lg" />
           ))}
+        </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="w-full max-w-[1600px] mx-auto py-4 sm:py-6">
+        <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-6 text-center">
+          <p className="text-destructive font-medium">Erreur lors du chargement des paramètres</p>
+          <p className="text-sm text-foreground/80 mt-1">{error.message}</p>
+          <Button variant="outline" className="mt-4" onClick={() => mutate()}>
+            Réessayer
+          </Button>
         </div>
       </div>
     )

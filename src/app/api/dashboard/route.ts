@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/db'
-import { calculateDashboardKPIs, calculateMonthlyData, calculateServiceDistribution } from '@/lib/math'
 import { requireAuth, UserPayload } from '@/lib/auth'
 
 const dashboardCache = new Map<string, { data: unknown; timestamp: number }>()
@@ -58,179 +58,140 @@ export const GET = requireAuth(async (request: NextRequest, user: UserPayload) =
       }
     }
 
-    // Fetch all data in parallel for better performance
-    const [sales, charges, serviceStats, articles] = await Promise.all([
-      // Fetch sales for the date range - uniquement les ventes de l'utilisateur connecté
-      prisma.sale.findMany({
-        where: { 
-          userId: user.id,
-          year: range === 'custom' ? undefined : year,
-          saleDate: {
-            gte: startDate,
-            lte: endDate
-          }
-        },
-        select: {
-          saleDate: true,
-          caHt: true,
-          totalTtc: true,
-          serviceName: true,
-          year: true,
-        },
-        orderBy: { saleDate: 'desc' }, // Optimisé avec index
-      }),
-      
-      // Fetch charges for the date range (including recurring logic) - filtrées par utilisateur
+    const periodMultiplier = range === 'year' ? 12 : range === 'quarter' ? 3 : 1
+
+    // Agrégation SQL : totaux et répartitions en BDD (SUM/GROUP BY), sans charger toutes les lignes
+    const [salesAgg, monthlyAgg, serviceAgg, charges, salesForCustom] = await Promise.all([
+      prisma.$queryRaw<[{ totalCaHt: number; totalTtc: number }]>(
+        Prisma.sql`
+          SELECT
+            COALESCE(SUM(s."caHt" * CASE WHEN a."billingFrequency" = 'mensuel' THEN ${periodMultiplier} ELSE 1 END), 0)::double precision AS "totalCaHt",
+            COALESCE(SUM(s."totalTtc" * CASE WHEN a."billingFrequency" = 'mensuel' THEN ${periodMultiplier} ELSE 1 END), 0)::double precision AS "totalTtc"
+          FROM sales s
+          LEFT JOIN articles a ON a."userId" = s."userId" AND a."serviceName" = s."serviceName"
+          WHERE s."userId" = ${user.id} AND s."saleDate" >= ${startDate} AND s."saleDate" <= ${endDate}
+        `
+      ),
+      prisma.$queryRaw<Array<{ month: number; caHt: number; totalTtc: number }>>(
+        Prisma.sql`
+          SELECT
+            EXTRACT(MONTH FROM s."saleDate")::int AS month,
+            COALESCE(SUM(s."caHt" * CASE WHEN a."billingFrequency" = 'mensuel' THEN ${periodMultiplier} ELSE 1 END), 0)::double precision AS "caHt",
+            COALESCE(SUM(s."totalTtc" * CASE WHEN a."billingFrequency" = 'mensuel' THEN ${periodMultiplier} ELSE 1 END), 0)::double precision AS "totalTtc"
+          FROM sales s
+          LEFT JOIN articles a ON a."userId" = s."userId" AND a."serviceName" = s."serviceName"
+          WHERE s."userId" = ${user.id} AND s."saleDate" >= ${startDate} AND s."saleDate" <= ${endDate}
+          GROUP BY EXTRACT(MONTH FROM s."saleDate")
+        `
+      ),
+      prisma.$queryRaw<Array<{ serviceName: string; caHt: number }>>(
+        Prisma.sql`
+          SELECT
+            s."serviceName",
+            COALESCE(SUM(s."caHt" * CASE WHEN a."billingFrequency" = 'mensuel' THEN ${periodMultiplier} ELSE 1 END), 0)::double precision AS "caHt"
+          FROM sales s
+          LEFT JOIN articles a ON a."userId" = s."userId" AND a."serviceName" = s."serviceName"
+          WHERE s."userId" = ${user.id} AND s."saleDate" >= ${startDate} AND s."saleDate" <= ${endDate}
+          GROUP BY s."serviceName"
+          ORDER BY "caHt" DESC
+        `
+      ),
       prisma.charge.findMany({
-        where: { 
+        where: {
           userId: user.id,
           OR: [
-            // Charges ponctuelles dans la période
             {
               recurring: false,
               year: range === 'custom' ? undefined : year,
-              expenseDate: {
-                gte: startDate,
-                lte: endDate
-              }
+              expenseDate: { gte: startDate, lte: endDate },
             },
-            // Toutes les charges récurrentes (peu importe l'année)
-            {
-              recurring: true
-            }
-          ]
+            { recurring: true },
+          ],
         },
         select: {
           id: true,
           expenseDate: true,
           amount: true,
-          linkedService: true,
           recurring: true,
           recurringType: true,
           year: true,
         },
       }),
-      
-      // Get top services by CA - uniquement ventes de l'utilisateur
-      prisma.sale.groupBy({
-        by: ['serviceName'],
-        where: { 
-          userId: user.id,
-          year: range === 'custom' ? undefined : year,
-          saleDate: {
-            gte: startDate,
-            lte: endDate
-          }
-        },
-        _sum: {
-          caHt: true,
-        },
-        _count: {
-          invoiceNo: true,
-        },
-        orderBy: {
-          _sum: {
-            caHt: 'desc',
-          },
-        },
-        take: 5,
-      }),
-      
-      prisma.article.findMany({
-        where: { userId: user.id },
-        select: { serviceName: true, billingFrequency: true } as { serviceName: true; billingFrequency: true },
-      }),
+      range === 'custom'
+        ? prisma.sale.findMany({
+            where: {
+              userId: user.id,
+              saleDate: { gte: startDate, lte: endDate },
+            },
+            select: {
+              saleDate: true,
+              caHt: true,
+              totalTtc: true,
+              serviceName: true,
+              year: true,
+            },
+            orderBy: { saleDate: 'desc' },
+          })
+        : Promise.resolve([]),
     ])
 
-    type ArticleBilling = { serviceName: string; billingFrequency: string | null }
-    const articleBillingMap = new Map(
-      (articles as ArticleBilling[]).map(a => [
-        a.serviceName,
-        a.billingFrequency || 'ponctuel',
-      ])
-    )
-    const periodMultiplier = range === 'year' ? 12 : range === 'quarter' ? 3 : 1
-    const effectiveSales = sales.map(sale => {
-      const freq = articleBillingMap.get(sale.serviceName) || 'ponctuel'
-      const mult = freq === 'mensuel' ? periodMultiplier : 1
-      return {
-        ...sale,
-        caHt: sale.caHt * mult,
-        totalTtc: sale.totalTtc * mult,
-      }
-    })
+    const totalCaHt = Number(salesAgg[0]?.totalCaHt ?? 0)
+    const totalTtc = Number(salesAgg[0]?.totalTtc ?? 0)
 
-    // Calculate total charges with recurring logic
+    // Charges : total avec logique récurrente (inchangée)
     let totalChargesHt = 0
-    
-    // Add one-time charges for the period
-    const oneTimeCharges = charges.filter(charge => !charge.recurring)
-    totalChargesHt += oneTimeCharges.reduce((sum, charge) => sum + (charge.amount || 0), 0)
-    
-    // Add recurring charges with proper calculation
-    const recurringCharges = charges.filter(charge => charge.recurring)
+    const oneTimeCharges = charges.filter(c => !c.recurring)
+    totalChargesHt += oneTimeCharges.reduce((sum, c) => sum + (c.amount || 0), 0)
+    const recurringCharges = charges.filter(c => c.recurring)
     for (const charge of recurringCharges) {
+      const chargeDate = new Date(charge.expenseDate)
+      const chargeYear = chargeDate.getFullYear()
+      const chargeMonth = chargeDate.getMonth() + 1
       if (charge.recurringType === 'annuel') {
-        // Pour les charges annuelles, vérifier si elles tombent dans la période
-        const chargeDate = new Date(charge.expenseDate)
-        const chargeYear = chargeDate.getFullYear()
-        const chargeMonth = chargeDate.getMonth() + 1 // +1 car getMonth() retourne 0-11
-        
         if (range === 'month') {
-          // Pour un mois : charge annuelle visible seulement le mois de paiement
-          const targetMonth = month || new Date().getMonth() + 1
-          if (chargeYear === year && chargeMonth === targetMonth) {
-            totalChargesHt += charge.amount || 0
-          }
+          const targetMonth = month ?? new Date().getMonth() + 1
+          if (chargeYear === year && chargeMonth === targetMonth) totalChargesHt += charge.amount || 0
         } else {
-          // Pour une année : charge annuelle visible si elle tombe dans l'année
-          if (chargeYear === year) {
-            totalChargesHt += charge.amount || 0
-          }
+          if (chargeYear === year) totalChargesHt += charge.amount || 0
         }
       } else if (charge.recurringType === 'mensuel') {
-        if (range === 'month') {
-          // Pour un mois : charge mensuelle × 1
-          totalChargesHt += charge.amount || 0
-        } else {
-          // Pour une année : charge mensuelle × 12
-          totalChargesHt += (charge.amount || 0) * 12
-        }
+        if (range === 'month') totalChargesHt += charge.amount || 0
+        else totalChargesHt += (charge.amount || 0) * 12
       } else {
-        // Par défaut, traiter comme annuel
-        const chargeDate = new Date(charge.expenseDate)
-        const chargeYear = chargeDate.getFullYear()
-        if (chargeYear === year) {
-          totalChargesHt += charge.amount || 0
-        }
+        if (chargeYear === year) totalChargesHt += charge.amount || 0
       }
     }
-    
-    // Use the calculated total charges directly for KPIs (effectiveSales = CA avec régularité)
-    const kpis = calculateDashboardKPIs(effectiveSales, charges, tauxUrssaf, range === 'custom' ? undefined : year)
-    // Override the charges total with the recurring calculation
-    kpis.chargesHt = totalChargesHt
-    // Recalculate result net with correct charges
-    // Chaîne cohérente : Résultat brut = CA − Charges ; Résultat net = Résultat brut − URSSAF ; Marge = Résultat net / CA
-    kpis.resultNet = kpis.caHt - kpis.chargesHt
-    const prelevementUrssaf = kpis.caHt * (tauxUrssaf / 100)
-    kpis.resultAfterUrssaf = kpis.resultNet - prelevementUrssaf
-    kpis.averageMargin = kpis.caHt > 0 ? (kpis.resultAfterUrssaf / kpis.caHt) * 100 : 0
 
-    // Calculate monthly data (ventes brutes par mois)
-    const monthlyData = calculateMonthlyData(sales, year)
+    const resultNet = totalCaHt - totalChargesHt
+    const prelevementUrssaf = totalCaHt * (tauxUrssaf / 100)
+    const resultAfterUrssaf = resultNet - prelevementUrssaf
+    const kpis = {
+      caHt: totalCaHt,
+      caTtc: totalTtc,
+      chargesHt: totalChargesHt,
+      resultNet,
+      resultAfterUrssaf,
+      averageMargin: totalCaHt > 0 ? (resultAfterUrssaf / totalCaHt) * 100 : 0,
+    }
 
-    // Répartition par service (annualisée si période année/trimestre)
-    const serviceDistribution = calculateServiceDistribution(
-      range === 'month' ? sales : effectiveSales
-    )
+    const monthMap = new Map(monthlyAgg.map(row => [row.month, { caHt: Number(row.caHt), caTtc: Number(row.totalTtc) }]))
+    const monthlyData = Array.from({ length: 12 }, (_, i) => ({
+      month: i + 1,
+      monthName: new Date(year, i).toLocaleDateString('fr-FR', { month: 'short' }),
+      caHt: monthMap.get(i + 1)?.caHt ?? 0,
+      caTtc: monthMap.get(i + 1)?.caTtc ?? 0,
+    }))
 
+    const serviceDistribution = serviceAgg.map(row => ({
+      name: row.serviceName,
+      value: Number(row.caHt),
+    }))
 
     const responseData = {
       kpis,
       monthlyData,
       serviceDistribution,
-      sales: range === 'custom' ? sales : undefined,
+      sales: range === 'custom' ? salesForCustom : undefined,
     }
     
     // Mettre en cache les données
