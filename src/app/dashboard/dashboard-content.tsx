@@ -42,7 +42,7 @@ interface DashboardData {
     averageMargin: number
   }
   monthlyData: Array<{ month: number; monthName: string; caHt: number; caTtc: number; chargesHt: number }>
-  serviceDistribution: Array<{ serviceName: string; caHt: number }>
+  serviceDistribution: Array<{ name: string; value: number }>
 }
 
 interface EvolutionData {
@@ -210,9 +210,10 @@ const DashboardContent = memo(function DashboardContent() {
     )
   }
 
-  const serviceDistributionForServices = (data?.serviceDistribution || []).map((d) => ({
-    name: d.serviceName,
-    value: d.caHt,
+  // L’API renvoie déjà { name, value } ; accepter aussi l’ancien format { serviceName, caHt }
+  const serviceDistributionForServices = (data?.serviceDistribution || []).map((d: { name?: string; value?: number; serviceName?: string; caHt?: number }) => ({
+    name: d.name ?? d.serviceName ?? '',
+    value: Number(d.value ?? d.caHt ?? 0),
   }))
 
   return (

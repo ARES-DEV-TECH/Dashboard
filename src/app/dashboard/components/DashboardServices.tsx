@@ -81,10 +81,12 @@ export function DashboardServices({
             <CardContent className="overflow-visible">
               {filteredServices.length === 0 ? (
                 <div className="flex items-center justify-center h-64 bg-muted/30 rounded-xl border border-border">
-                  <div className="text-center">
+                  <div className="text-center px-4">
                     <div className="text-muted-foreground text-lg mb-2">📊</div>
-                    <p className="text-foreground">Aucune donnée de service disponible</p>
-                    <p className="text-sm text-muted-foreground">Ajoutez des ventes pour voir la répartition</p>
+                    <p className="text-foreground font-medium">Aucune donnée de service sur cette période</p>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Changez le filtre (ex. &quot;Cette année&quot;) ou ajoutez des ventes pour voir la répartition.
+                    </p>
                   </div>
                 </div>
               ) : (

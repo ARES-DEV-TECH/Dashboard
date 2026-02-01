@@ -64,7 +64,8 @@ export interface DashboardData {
     caTtc: number
     chargesHt: number
   }>
-  serviceDistribution: Array<{ serviceName: string; caHt: number }>
+  /** Répartition CA par service (API renvoie name + value pour Recharts) */
+  serviceDistribution: Array<{ name: string; value: number }>
 }
 
 export interface EvolutionData {

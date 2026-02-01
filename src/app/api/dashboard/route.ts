@@ -182,9 +182,10 @@ export const GET = requireAuth(async (request: NextRequest, user: UserPayload) =
       caTtc: monthMap.get(i + 1)?.caTtc ?? 0,
     }))
 
-    const serviceDistribution = serviceAgg.map(row => ({
-      name: row.serviceName,
-      value: Number(row.caHt),
+    // PostgreSQL / Prisma peut renvoyer les colonnes en minuscules (servicename, caht)
+    const serviceDistribution = serviceAgg.map((row: { serviceName?: string; servicename?: string; caHt?: number; caht?: number }) => ({
+      name: String(row.serviceName ?? row.servicename ?? ''),
+      value: Number(row.caHt ?? row.caht ?? 0),
     }))
 
     const responseData = {
