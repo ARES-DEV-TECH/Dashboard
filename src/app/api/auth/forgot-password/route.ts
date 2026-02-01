@@ -2,11 +2,23 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { prisma } from '@/lib/db'
 import { generateResetToken } from '@/lib/auth'
+import { getClientIdentifier, checkRateLimit, AUTH_RATE_LIMIT } from '@/lib/rate-limit'
 
 const schema = z.object({ email: z.string().email('Email invalide') })
 
 export async function POST(request: NextRequest) {
   try {
+    const clientId = getClientIdentifier(request)
+    const { allowed, retryAfterSeconds } = checkRateLimit(clientId, 'forgot-password', AUTH_RATE_LIMIT.forgotPassword)
+    if (!allowed) {
+      const res = NextResponse.json(
+        { error: 'Trop de demandes. Réessayez dans quelques minutes.' },
+        { status: 429 }
+      )
+      if (retryAfterSeconds != null) res.headers.set('Retry-After', String(retryAfterSeconds))
+      return res
+    }
+
     const body = await request.json()
     const { email } = schema.parse(body)
     const trimmedEmail = email.trim().toLowerCase()
@@ -48,8 +60,6 @@ export async function POST(request: NextRequest) {
         const err = await res.json().catch(() => ({}))
         console.error('Resend error:', res.status, err)
       }
-    } else if (process.env.NODE_ENV !== 'production') {
-      console.log('[DEV] Reset link:', resetUrl)
     }
 
     const json: { message: string; resetLink?: string; emailNotConfigured?: boolean } = {

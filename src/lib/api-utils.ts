@@ -25,11 +25,6 @@ export function zodErrorResponse(error: ZodError) {
   )
 }
 
-/** Réponse 409 pour conflit (ex. contrainte unique). */
-export function conflictResponse(message: string) {
-  return NextResponse.json({ error: message }, { status: 409 })
-}
-
 /** Réponse d'erreur API générique. */
 export function apiError(message: string, status = 500) {
   return NextResponse.json({ error: message }, { status })

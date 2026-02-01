@@ -23,8 +23,9 @@
 # production
 /build
 
-# données projet (roadmap, doc interne — ne pas versionner)
+# données projet (roadmap, audits, doc interne — ne pas versionner)
 ROADMAP.md
+docs/*AUDIT*
 
 # misc
 .DS_Store

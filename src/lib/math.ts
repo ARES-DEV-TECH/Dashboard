@@ -1,10 +1,5 @@
-// Utility functions for calculations
+// Utility functions for calculations (ventes : montants CA HT, TVA, TTC)
 
-/** Format par défaut (préférer l’API GET /api/sales/next-invoice-no pour le prochain numéro). */
-export function generateInvoiceNumber(): string {
-  const year = new Date().getFullYear()
-  return `F${year}-000001`
-}
 
 /**
  * Calcule les montants d'une vente (CA HT, TVA, TTC).
@@ -30,66 +25,4 @@ export async function calculateSaleAmounts(quantity: number, unitPriceHt: number
     totalTtc,
     year
   }
-}
-
-
-export function calculateDashboardKPIs(sales: Array<{year: number, caHt: number, totalTtc: number}>, charges: Array<{expenseDate: Date, amount: number | null}>, tauxUrssaf: number = 22, targetYear?: number) {
-  // Pour les périodes personnalisées, utiliser toutes les ventes et charges
-  const yearSales = targetYear ? sales.filter(sale => sale.year === targetYear) : sales
-  const yearCharges = targetYear ? charges.filter(charge => new Date(charge.expenseDate).getFullYear() === targetYear) : charges
-
-  const caHt = yearSales.reduce((sum, sale) => sum + sale.caHt, 0)
-  const caTtc = yearSales.reduce((sum, sale) => sum + sale.totalTtc, 0)
-  const chargesAmount = yearCharges.reduce((sum, charge) => sum + (charge.amount || 0), 0)
-  // Chaîne cohérente : CA HT − Charges = Résultat brut ; − URSSAF (X% du CA HT) = Résultat net
-  const resultNet = caHt - chargesAmount // résultat brut (avant URSSAF), clé API conservée
-  const prelevementUrssaf = caHt * (tauxUrssaf / 100)
-  const resultAfterUrssaf = resultNet - prelevementUrssaf // résultat net (après URSSAF)
-  const averageMargin = caHt > 0 ? (resultAfterUrssaf / caHt) * 100 : 0 // marge nette = résultat net / CA HT (%)
-
-  return {
-    caHt,
-    caTtc,
-    chargesHt: chargesAmount,
-    resultNet,
-    resultAfterUrssaf,
-    averageMargin
-  }
-}
-
-export function calculateMonthlyData(sales: Array<{year: number, saleDate: Date, caHt: number, totalTtc: number}>, targetYear?: number) {
-  const year = targetYear || new Date().getFullYear()
-  const yearSales = sales.filter(sale => sale.year === year)
-  
-  const monthlyData = Array.from({ length: 12 }, (_, i) => ({
-    month: i + 1,
-    monthName: new Date(year, i).toLocaleDateString('fr-FR', { month: 'short' }),
-    caHt: 0,
-    caTtc: 0
-  }))
-
-  yearSales.forEach(sale => {
-    const month = new Date(sale.saleDate).getMonth()
-    monthlyData[month].caHt += sale.caHt
-    monthlyData[month].caTtc += sale.totalTtc
-  })
-
-  return monthlyData
-}
-
-export function calculateServiceDistribution(sales: Array<{year: number, serviceName: string, caHt: number}>) {
-  // Les ventes sont déjà filtrées par l'API selon la période sélectionnée (année, mois, etc.)
-  const serviceMap = new Map<string, { name: string; value: number }>()
-  
-  sales.forEach(sale => {
-    const serviceName = sale.serviceName
-    const entry = serviceMap.get(serviceName)
-    if (!entry) {
-      serviceMap.set(serviceName, { name: serviceName, value: sale.caHt })
-    } else {
-      entry.value += sale.caHt
-    }
-  })
-
-  return Array.from(serviceMap.values())
 }

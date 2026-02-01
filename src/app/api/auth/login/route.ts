@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { verifyPassword, generateToken } from '@/lib/auth'
+import { getClientIdentifier, checkRateLimit, AUTH_RATE_LIMIT } from '@/lib/rate-limit'
 import { z } from 'zod'
 
 const loginSchema = z.object({
@@ -15,6 +16,17 @@ const loginSchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
+    const clientId = getClientIdentifier(request)
+    const { allowed, retryAfterSeconds } = checkRateLimit(clientId, 'login', AUTH_RATE_LIMIT.login)
+    if (!allowed) {
+      const res = NextResponse.json(
+        { error: 'Trop de tentatives. Réessayez dans quelques minutes.' },
+        { status: 429 }
+      )
+      if (retryAfterSeconds != null) res.headers.set('Retry-After', String(retryAfterSeconds))
+      return res
+    }
+
     const contentType = request.headers.get('content-type') || ''
     let body: { email?: string; password?: string; rememberMe?: boolean }
 

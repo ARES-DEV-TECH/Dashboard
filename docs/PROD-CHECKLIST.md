@@ -23,6 +23,24 @@
 - [ ] **Resend** (optionnel) : clé API pour envoi d’emails (mot de passe oublié).
 - [ ] **Sentry** (optionnel) : `NEXT_PUBLIC_SENTRY_DSN`, `SENTRY_DSN`, etc.
 
+## Rate limiting
+
+- [x] **Login** : 10 tentatives / minute par IP (in-memory par instance).
+- [x] **Mot de passe oublié** : 5 demandes / minute par IP.
+- [x] **Réinitialisation mot de passe** : 5 soumissions / minute par IP.
+- [ ] Pour une limite **globale** (multi-instances) : prévoir Redis ou Vercel KV (optionnel).
+
+## Procédure de rollback
+
+En cas de problème après un déploiement :
+
+1. **Vercel** : Dashboard → Projet → Deployments → clic sur le déploiement précédent (vert) → « Promote to Production ».
+2. **Ou** : revenir au commit précédent et redéployer :
+   - `git revert HEAD --no-edit && git push origin main` (crée un revert), ou
+   - `git reset --hard <commit-précédent>` puis `git push --force` (à utiliser avec précaution si travail d'équipe).
+3. Vérifier que la prod répond correctement après le rollback.
+4. Corriger le bug en local, tester, puis redéployer.
+
 ## Après déploiement
 
 - [ ] Tester une connexion et une navigation (dashboard, listes).
