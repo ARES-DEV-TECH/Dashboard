@@ -5,7 +5,8 @@ import { useSearchParams, useRouter } from 'next/navigation'
 import { Logo } from '@/components/logo'
 import { Input } from '@/components/ui/input'
 import { useAuth } from '@/components/auth-provider'
-import { warmupApis } from '@/lib/warmup-apis'
+import { warmupApis, preloadSwrCache } from '@/lib/warmup-apis'
+import { useSWRConfig } from 'swr'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -21,6 +22,7 @@ function LoginContent() {
   const [error, setError] = useState('')
   const searchParams = useSearchParams()
   const router = useRouter()
+  const { mutate } = useSWRConfig()
   const { user, loading: authLoading } = useAuth()
 
   useEffect(() => {
@@ -32,9 +34,10 @@ function LoginContent() {
       router.prefetch('/charges')
       router.prefetch('/settings')
       warmupApis()
+      preloadSwrCache(mutate)
       router.replace('/dashboard')
     }
-  }, [authLoading, user, router])
+  }, [authLoading, user, router, mutate])
 
   useEffect(() => {
     const err = searchParams.get('error')
@@ -65,6 +68,7 @@ function LoginContent() {
       if (ok) {
         prefetchAppRoutes()
         warmupApis()
+        preloadSwrCache(mutate)
         router.replace('/dashboard')
         return
       }

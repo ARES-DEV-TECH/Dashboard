@@ -8,7 +8,7 @@ import type { DashboardData, EvolutionData, ChargesBreakdown, DashboardSWRPayloa
 
 export type { DashboardData, EvolutionData, ChargesBreakdown, DashboardSWRPayload } from '@/lib/types'
 
-async function fetcher(key: string): Promise<DashboardSWRPayload | null> {
+export async function dashboardFetcher(key: string): Promise<DashboardSWRPayload | null> {
   const rest = key.replace(/^dashboard-/, '')
   const [params, yearStr] = rest.split('::')
   const year = parseInt(yearStr || '', 10)
@@ -66,7 +66,7 @@ export function useDashboardData(dateRange: DateRange) {
   const year = dateRange.start.getFullYear()
   const key = `dashboard-${params}::${year}`
 
-  const { data, error, isLoading, isValidating, mutate } = useSWR<DashboardSWRPayload | null>(key, fetcher, {
+  const { data, error, isLoading, isValidating, mutate } = useSWR<DashboardSWRPayload | null>(key, dashboardFetcher, {
     revalidateOnFocus: true,
     revalidateOnReconnect: true,
     dedupingInterval: 5000,
