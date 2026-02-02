@@ -2,11 +2,11 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { ChevronRight } from 'lucide-react'
+import { ChevronRight, LayoutDashboard } from 'lucide-react'
 
 /** Libellés génériques pour les segments d’URL (pas de noms, IDs ou filtres sensibles). */
 const SEGMENT_LABELS: Record<string, string> = {
-  dashboard: 'Dashboard',
+  dashboard: 'Tableau de bord',
   clients: 'Clients',
   articles: 'Articles',
   sales: 'Ventes',
@@ -37,19 +37,30 @@ export function Breadcrumbs() {
   return (
     <nav
       aria-label="Fil d'Ariane"
-      className="flex items-center gap-1.5 text-sm text-muted-foreground mb-3 sm:mb-4"
+      className="flex items-center gap-1.5 text-sm text-muted-foreground"
     >
+      <LayoutDashboard
+        className="h-4 w-4 shrink-0 text-muted-foreground"
+        aria-hidden
+      />
       {items.length === 1 && items[0].href === '/dashboard' ? (
-        <span className="font-medium text-foreground" aria-current="page">
-          Dashboard
-        </span>
+        <>
+          <span className="font-medium text-foreground" aria-current="page">
+            Tableau de bord
+          </span>
+          <ChevronRight
+            className="h-4 w-4 shrink-0 text-muted-foreground/70"
+            aria-hidden
+          />
+          <span className="text-muted-foreground">Vue d&apos;ensemble</span>
+        </>
       ) : (
         <>
           <Link
             href="/dashboard"
             className="hover:text-foreground transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 rounded"
           >
-            Dashboard
+            Tableau de bord
           </Link>
           {items.map((item) => (
             <span key={item.href} className="flex items-center gap-1.5">

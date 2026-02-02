@@ -104,8 +104,12 @@ model Sale {
   totalTtc     Float    // caHt + tvaAmount
   options      String?  // JSON string des options sélectionnées
   year         Int
+  recurring    Boolean? @default(false)
+  recurringType String? // "mensuel" | "annuel" | "ponctuel"
+  endDate      DateTime? // Date de fin pour les récurrences (null = infini)
   quoteId      String?  // Reference to original quote
   invoiceId    String?  // Reference to invoice
+  status       String   @default("paid") // "paid" | "pending" | "cancelled"
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -128,6 +132,7 @@ model Sale {
   @@index([invoiceId])
   @@index([userId])
   @@index([userId, saleDate]) // Requêtes dashboard/evolution par user + période
+  @@index([userId, recurring]) // Optimisation pour les ventes récurrentes
   @@index([userId, year])
   @@index([saleDate, year])
   @@index([clientName, serviceName])
@@ -143,6 +148,7 @@ model Charge {
   amount        Float?   // Montant TTC (renommé de amountTtc)
   recurring     Boolean?
   recurringType String? // "mensuel" | "annuel" | "ponctuel"
+  endDate       DateTime? // Date de fin pour les récurrences (null = infini)
   paymentMethod String?
   notes         String?
   linkedService String?  // optional FK to Article.serviceName

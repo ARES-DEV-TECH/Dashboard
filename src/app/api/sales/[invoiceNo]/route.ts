@@ -21,7 +21,26 @@ export async function PUT(
       return apiError('Numéro de facture manquant', 400)
     }
 
-    // Retirer les champs recalculés côté API pour éviter toute erreur Zod si le front les envoie (undefined/null)
+    // Mise à jour du statut seul (depuis le tableau "Ventes récentes" du dashboard)
+    const bodyKeys = Object.keys(body as object).filter(k => !['caHt', 'tvaAmount', 'totalTtc', 'year'].includes(k))
+    const statusOnly = bodyKeys.length === 1 && bodyKeys[0] === 'status' && typeof (body as { status?: string }).status === 'string'
+    const validStatuses = ['paid', 'pending', 'cancelled']
+    if (statusOnly && validStatuses.includes((body as { status: string }).status)) {
+      const existing = await prisma.sale.findUnique({
+        where: { userId_invoiceNo: { userId: user.id, invoiceNo } },
+        select: { userId: true },
+      })
+      if (!existing || existing.userId !== user.id) {
+        return apiError('Vente non trouvée', 404)
+      }
+      const sale = await prisma.sale.update({
+        where: { userId_invoiceNo: { userId: user.id, invoiceNo } },
+        data: { status: (body as { status: string }).status },
+      })
+      return Response.json({ sale })
+    }
+
+    // Mise à jour complète (formulaire vente)
     const { caHt, tvaAmount, totalTtc, year, ...bodyForValidation } = body as Record<string, unknown>
     const validatedData = updateSaleSchema.parse(bodyForValidation)
 
@@ -29,7 +48,9 @@ export async function PUT(
     const { invoiceNo: _ignored, ...restValidated } = validatedData
     const updateData = {
       ...restValidated,
-      saleDate: new Date(validatedData.saleDate)
+      saleDate: new Date(validatedData.saleDate),
+      endDate: validatedData.endDate ? new Date(validatedData.endDate) : null,
+      status: validatedData.status
     }
 
     // Options : total des options sélectionnées

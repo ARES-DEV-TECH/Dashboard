@@ -7,6 +7,7 @@ export const SWR_KEYS = {
   clients: 'clients',
   articles: 'articles',
   sales: 'sales',
+  salesList: 'sales-list',
   charges: 'charges',
   settings: 'settings',
 } as const
@@ -26,6 +27,14 @@ export async function fetchArticles(): Promise<Article[]> {
 
 export async function fetchSales(): Promise<SalesResponse> {
   const res = await electronFetch('/api/sales')
+  if (!res.ok) throw new Error('Erreur chargement ventes')
+  const data = await res.json()
+  return { sales: data?.sales ?? [], pagination: data?.pagination }
+}
+
+/** Liste complète des ventes pour la page Ventes (tri, pagination côté client). */
+export async function fetchSalesList(): Promise<SalesResponse> {
+  const res = await electronFetch('/api/sales?limit=500')
   if (!res.ok) throw new Error('Erreur chargement ventes')
   const data = await res.json()
   return { sales: data?.sales ?? [], pagination: data?.pagination }

@@ -12,9 +12,9 @@ export type SendEmailOptions = {
 }
 
 async function sendViaResend(options: SendEmailOptions): Promise<boolean> {
-  const apiKey = process.env.RESEND_API_KEY
+  const apiKey = process.env.RESEND_API_KEY?.trim()
   if (!apiKey) return false
-  const from = options.from || process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev'
+  const from = options.from || process.env.RESEND_FROM_EMAIL?.trim() || 'onboarding@resend.dev'
   const res = await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: {
@@ -37,24 +37,28 @@ async function sendViaResend(options: SendEmailOptions): Promise<boolean> {
 }
 
 async function sendViaSmtp(options: SendEmailOptions): Promise<boolean> {
-  const host = process.env.SMTP_HOST
+  const host = process.env.SMTP_HOST?.trim()
   if (!host) return false
-  const port = parseInt(process.env.SMTP_PORT || '465', 10)
-  const user = process.env.SMTP_USER
-  const pass = process.env.SMTP_PASSWORD
-  const from = options.from || process.env.SMTP_FROM || user
+  const port = parseInt(process.env.SMTP_PORT?.trim() || '465', 10)
+  const user = process.env.SMTP_USER?.trim()
+  const pass = process.env.SMTP_PASSWORD?.trim()
+  const from = options.from || process.env.SMTP_FROM?.trim() || user
   if (!user || !pass || !from) return false
 
   const nodemailer = await import('nodemailer')
+  // Port 465 = SSL, port 587 = STARTTLS (Hostinger supporte les deux)
+  const secure = port === 465
   const transporter = nodemailer.default.createTransport({
     host,
     port,
-    secure: port === 465,
+    secure,
     auth: { user, pass },
+    connectionTimeout: 15000,
+    greetingTimeout: 10000,
   })
   try {
     await transporter.sendMail({
-      from,
+      from: `ARES Dashboard <${from}>`,
       to: options.to,
       subject: options.subject,
       html: options.html,
@@ -78,7 +82,10 @@ export async function sendEmail(options: SendEmailOptions): Promise<boolean> {
 
 /** Indique si au moins un transport (Resend ou SMTP) est configuré. */
 export function isEmailConfigured(): boolean {
-  if (process.env.RESEND_API_KEY) return true
-  if (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASSWORD) return true
+  if (process.env.RESEND_API_KEY?.trim()) return true
+  const host = process.env.SMTP_HOST?.trim()
+  const user = process.env.SMTP_USER?.trim()
+  const pass = process.env.SMTP_PASSWORD?.trim()
+  if (host && user && pass) return true
   return false
 }

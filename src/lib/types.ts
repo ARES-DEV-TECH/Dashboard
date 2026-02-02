@@ -115,9 +115,36 @@ export interface ChargesBreakdown {
   totals?: { breakdown?: { recurring: number; oneTime: number } }
 }
 
+import type { ComparisonData } from '@/lib/comparison-utils'
+
 export interface DashboardSWRPayload {
   data: DashboardData
   chargesData: ChargesBreakdown
   evolutionData: EvolutionData
   companySettings: { defaultTvaRate?: number; tauxUrssaf?: number }
+  comparisonData?: ComparisonData
+}
+
+/** Payload retourné par useAnalyticsData (Analytics page) – inclut fiscalData, servicesData, chargesData */
+export interface AnalyticsPayload {
+  kpis?: unknown
+  evolution: unknown[]
+  recentSales: unknown[]
+  servicesData: {
+    serviceDistribution: Array<{ name: string; value: number }>
+    monthlyServiceEvolution?: unknown
+    serviceAnalysis?: unknown[]
+    clientAnalysis?: unknown[]
+  }
+  chargesData: {
+    totals?: unknown
+    breakdown: Array<{ category: string; recurring: number; oneTime: number; total: number }>
+    detailList?: unknown[]
+  }
+  fiscalData: {
+    urssaf: { baseAmount: number; rate: number; amount: number }
+    tva: { collected: number; deductible: number; net: number }
+    pending?: { amount: number }
+  }
+  companySettings?: Record<string, unknown>
 }

@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
       orderBy: { serviceName: 'asc' },
     })
     return NextResponse.json(articles, {
-      headers: { 'Cache-Control': 'private, max-age=60, stale-while-revalidate=30' },
+      headers: { 'Cache-Control': 'private, max-age=0, must-revalidate' },
     })
   } catch (findManyError) {
     const msg = findManyError instanceof Error ? findManyError.message : 'Unknown error'
@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
         Array<{ serviceName: string; priceHt: number; billByHour: boolean; type: string | null; description: string | null; createdAt: Date; updatedAt: Date; userId: string }>
       >(Prisma.sql`SELECT "serviceName", "priceHt", "billByHour", "type", "description", "createdAt", "updatedAt", "userId" FROM articles WHERE "userId" = ${user.id} ORDER BY "serviceName" ASC`)
       return NextResponse.json(raw, {
-        headers: { 'Cache-Control': 'private, max-age=60, stale-while-revalidate=30' },
+        headers: { 'Cache-Control': 'private, max-age=0, must-revalidate' },
       })
     } catch (rawError) {
       console.error('Error fetching articles (raw):', rawError)

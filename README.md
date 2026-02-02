@@ -5,9 +5,10 @@ Application web de pilotage d’entreprise : clients, articles, ventes, charges,
 ## Fonctionnalités
 
 - **Dashboard** : KPIs (CA HT, charges, résultat net, marge), graphiques d’évolution et par service, filtres par période, comparaison avec période précédente.
+- **Analytics** : Analyse approfondie des services et charges, calcul des cotisations URSSAF et TVA.
 - **Clients** : CRUD, recherche, export/import CSV.
 - **Articles** : Services et produits (prix HT, TVA, options), export/import CSV.
-- **Ventes** : Facturation, numéros auto, liaison client/service, export CSV.
+- **Ventes** : Facturation, numéros auto, liaison client/service, gestion des récurrences (abonnements), export CSV.
 - **Charges** : Charges professionnelles, récurrentes ou ponctuelles, liaison service/client, répartition par catégorie.
 - **Paramètres** : Taux URSSAF, TVA, logo entreprise.
 - **Auth** : Inscription avec **confirmation par email** (lien « Valider mon compte »), connexion (JWT), mot de passe oublié, réinitialisation, renvoi d’email de confirmation.
@@ -51,7 +52,7 @@ npm run db:seed
 - `DATABASE_URL` : URL PostgreSQL (ex. Supabase).
 - En production (Vercel) : `DATABASE_POOLER_URL` avec l’URL du pooler (port 6543) et `?pgbouncer=true&connect_timeout=30&connection_limit=1`.
 - `JWT_SECRET` : Secret pour signer les tokens (obligatoire en prod).
-- Optionnel (emails) : `RESEND_API_KEY`, `RESEND_FROM_EMAIL` pour le mot de passe oublié.
+- Optionnel (emails) : `RESEND_API_KEY`, `RESEND_FROM_EMAIL` (Resend) ou variables `SMTP_*` (Hostinger, etc.) pour mot de passe oublié et confirmation de compte.
 
 ### Mot de passe oublié
 
@@ -93,27 +94,23 @@ Les tests Playwright (`e2e/auth.spec.ts`, `e2e/api-auth.spec.ts`) vérifient les
 ```
 ares-dashboard/
 ├── src/
-│   ├── app/              # App Router Next.js
-│   │   ├── api/          # API Routes (auth, dashboard, clients, articles, sales, charges, etc.)
-│   │   ├── dashboard/    # Page dashboard + contenu + hooks SWR
-│   │   ├── clients/      # Gestion clients
-│   │   ├── articles/     # Gestion articles
-│   │   ├── sales/        # Gestion ventes
-│   │   ├── charges/      # Gestion charges
-│   │   ├── settings/     # Paramètres entreprise
-│   │   ├── login/, register/, forgot-password/, reset-password/
+│   ├── app/                  # App Router Next.js
+│   │   ├── (main)/           # Layout sidebar (dashboard, clients, articles, sales, charges, settings, analytics)
+│   │   ├── api/              # API Routes (auth, dashboard, clients, articles, sales, charges, etc.)
+│   │   ├── login/, register/, forgot-password/, reset-password/, confirm-email/
 │   │   └── layout.tsx, globals.css
-│   ├── components/       # Layout, navigation, auth-provider, ui (shadcn)
-│   └── lib/              # auth, db, validations, math, date-utils, electron-api, etc.
+│   ├── components/           # app-sidebar, layout, auth-provider, ui (shadcn)
+│   └── lib/                  # auth, db, email, validations, date-utils, electron-api, etc.
 ├── prisma/
-│   ├── schema.prisma     # Schéma BDD (User, Client, Article, Sale, Charge, etc.)
-│   ├── migrations/       # Migrations SQL
-│   └── seed-realistic.ts # Seed paramètres
-├── public/               # Assets, images, uploads (logos)
-├── electron/             # Main et preload Electron (si usage desktop)
-├── docs/                 # Documentation (migrations, etc.)
-├── ROADMAP.md            # Priorités et roadmap
-└── README-ELECTRON.md    # Build et usage Electron
+│   ├── schema.prisma         # Schéma BDD (User, Client, Article, Sale, Charge, etc.)
+│   ├── migrations/          # Migrations SQL
+│   └── seed-realistic.ts    # Seed paramètres
+├── scripts/                  # send-test-email.ts, send-welcome-email.ts, dev-fresh.sh
+├── public/                   # Assets, images, uploads (logos)
+├── electron/                 # Main et preload Electron (si usage desktop)
+├── docs/                     # PROD-CHECKLIST, COMPOSANT-LISTE, MIGRATION, etc.
+├── ROADMAP.md                # Priorités et roadmap
+└── README-ELECTRON.md       # Build et usage Electron
 ```
 
 ## Données par utilisateur

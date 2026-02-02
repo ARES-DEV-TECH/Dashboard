@@ -1,0 +1,447 @@
+"use client"
+
+import { useState, useEffect, useMemo } from 'react'
+import useSWR from 'swr'
+import { DataTable, Column } from '@/components/ui/data-table'
+import { Button } from '@/components/ui/button'
+import { Card } from '@/components/ui/card'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Columns3 } from 'lucide-react'
+import { electronFetch } from '@/lib/electron-api'
+import { toast } from 'sonner'
+import { Skeleton } from '@/components/ui/skeleton'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { Client } from '@/lib/validations'
+import { generateCSV, downloadCSV } from '@/lib/csv'
+import { SWR_KEYS, fetchClients } from '@/lib/swr-fetchers'
+import { getInitials } from '@/lib/utils'
+
+const CLIENTS_COLUMNS_STORAGE_KEY = 'clients-table-columns'
+const DEFAULT_CLIENTS_COLUMN_VISIBILITY: Record<string, boolean> = {
+  clientName: true,
+  firstName: true,
+  lastName: true,
+  company: true,
+  email: true,
+  phone: true,
+  website: true,
+}
+
+export function ClientsContent() {
+  const { data: clients = [], error, isLoading, mutate } = useSWR<Client[]>(SWR_KEYS.clients, fetchClients, {
+    revalidateOnFocus: false,
+    dedupingInterval: 10000,
+  })
+  const [isDialogOpen, setIsDialogOpen] = useState(false)
+  const [editingClient, setEditingClient] = useState<Client | null>(null)
+  const [formData, setFormData] = useState<Partial<Client>>({})
+  const [saveError, setSaveError] = useState<string | null>(null)
+  const loading = isLoading
+
+  const handleSave = async () => {
+    setSaveError(null)
+    if (!formData.firstName?.trim() || !formData.lastName?.trim()) {
+      setSaveError('Le prénom et le nom sont requis.')
+      return
+    }
+    const url = editingClient?.clientName
+      ? `/api/clients/${encodeURIComponent(editingClient.clientName)}`
+      : '/api/clients'
+    const method = editingClient ? 'PUT' : 'POST'
+    const previousClients = [...clients]
+
+    if (editingClient) {
+      const optimistic = clients.map(c =>
+        c.clientName === editingClient.clientName
+          ? { ...c, ...formData, clientName: `${formData.firstName} ${formData.lastName}`.trim() }
+          : c
+      )
+      mutate(optimistic, { revalidate: false })
+    } else {
+      const newClientName = `${formData.firstName} ${formData.lastName}`.trim()
+      mutate(
+        [...clients, { ...formData, clientName: newClientName } as Client],
+        { revalidate: false }
+      )
+    }
+
+    try {
+      const response = await electronFetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData),
+      })
+      const data = await response.json().catch(() => ({}))
+      if (response.ok) {
+        const updatedClient = data as Client | undefined
+        if (updatedClient) {
+          if (editingClient) {
+            const next = clients.map((c) =>
+              c.clientName === editingClient.clientName ? { ...updatedClient, clientName: updatedClient.clientName ?? `${updatedClient.firstName} ${updatedClient.lastName}`.trim() } : c
+            )
+            mutate(next, { revalidate: false })
+          } else {
+            const clientName = `${updatedClient.firstName} ${updatedClient.lastName}`.trim()
+            mutate([...clients, { ...updatedClient, clientName: updatedClient.clientName ?? clientName }], { revalidate: false })
+          }
+        } else {
+          await mutate()
+        }
+        setIsDialogOpen(false)
+        setEditingClient(null)
+        setFormData({})
+        setSaveError(null)
+        toast.success('Clients', { description: editingClient ? 'Client mis à jour.' : 'Client créé.' })
+      } else {
+        mutate(previousClients, { revalidate: false })
+        const detailsStr = typeof data?.details === 'string'
+          ? data.details
+          : Array.isArray(data?.details)
+            ? data.details.map((d: { message?: string }) => d.message).filter(Boolean).join(', ')
+            : ''
+        const msg = data?.error || detailsStr || `Erreur ${response.status}`
+        setSaveError(msg)
+        toast.error('Clients', { description: msg })
+      }
+    } catch (error) {
+      console.error('Error saving client:', error)
+      mutate(previousClients, { revalidate: false })
+      setSaveError('Erreur réseau ou serveur. Réessayez.')
+      toast.error('Clients', { description: 'Erreur réseau ou serveur. Réessayez.' })
+    }
+  }
+
+  const handleEdit = (client: Client) => {
+    setSaveError(null)
+    setEditingClient(client)
+    setFormData(client)
+    setIsDialogOpen(true)
+  }
+
+  const handleDelete = async (client: Client) => {
+    const displayName = [client.firstName, client.lastName].filter(Boolean).join(' ') || client.clientName || 'Ce client'
+    if (confirm(`Êtes-vous sûr de vouloir supprimer le client "${displayName}" ?`)) {
+      const clientId = client.clientName ?? [client.firstName, client.lastName].filter(Boolean).join(' ') ?? ''
+      const previousClients = [...clients]
+      mutate(clients.filter(c => c.clientName !== client.clientName), { revalidate: false })
+      try {
+        const response = await electronFetch(`/api/clients/${encodeURIComponent(clientId)}`, {
+          method: 'DELETE',
+        })
+        if (response.ok) {
+          await mutate()
+          toast.success('Clients', { description: 'Client supprimé.' })
+        } else {
+          const data = await response.json().catch(() => ({}))
+          mutate(previousClients, { revalidate: false })
+          toast.error('Clients', { description: data?.error || 'Erreur lors de la suppression' })
+        }
+      } catch (error) {
+        console.error('Error deleting client:', error)
+        mutate(previousClients, { revalidate: false })
+        toast.error('Clients', { description: 'Erreur lors de la suppression' })
+      }
+    }
+  }
+
+  const handleExport = () => {
+    const csvContent = generateCSV(clients, ['firstName', 'lastName', 'clientName', 'email', 'phone', 'website', 'company'])
+    downloadCSV(csvContent, `clients-${new Date().toISOString().split('T')[0]}.csv`)
+  }
+
+  const handleAdd = () => {
+    setSaveError(null)
+    setEditingClient(null)
+    setFormData({})
+    setIsDialogOpen(true)
+  }
+
+  useEffect(() => {
+    const handler = () => handleAdd()
+    window.addEventListener('shortcut-new', handler)
+    return () => window.removeEventListener('shortcut-new', handler)
+  }, [])
+
+  const [columnVisibility, setColumnVisibility] = useState<Record<string, boolean>>(() => {
+    if (typeof window === 'undefined') return { ...DEFAULT_CLIENTS_COLUMN_VISIBILITY }
+    try {
+      const stored = window.localStorage.getItem(CLIENTS_COLUMNS_STORAGE_KEY)
+      if (!stored) return { ...DEFAULT_CLIENTS_COLUMN_VISIBILITY }
+      const parsed = JSON.parse(stored) as Record<string, boolean>
+      return { ...DEFAULT_CLIENTS_COLUMN_VISIBILITY, ...parsed }
+    } catch {
+      return { ...DEFAULT_CLIENTS_COLUMN_VISIBILITY }
+    }
+  })
+
+  const saveColumnVisibility = (next: Record<string, boolean>) => {
+    setColumnVisibility(next)
+    try {
+      window.localStorage.setItem(CLIENTS_COLUMNS_STORAGE_KEY, JSON.stringify(next))
+    } catch {}
+  }
+
+  const toggleColumn = (key: string) => {
+    const visibleCount = Object.values(columnVisibility).filter(Boolean).length
+    const currentlyVisible = columnVisibility[key] !== false
+    if (currentlyVisible && visibleCount <= 1) return
+    saveColumnVisibility({ ...columnVisibility, [key]: !currentlyVisible })
+  }
+
+  const columns: Column<Client>[] = useMemo(
+    () => [
+      {
+        key: 'clientName',
+        label: 'Contact',
+        sortable: true,
+        sortLabel: 'alpha',
+        render: (_, row) => {
+          const displayName = [row.firstName, row.lastName].filter(Boolean).join(' ') || row.clientName || '—'
+          const initials = getInitials(row.firstName, row.lastName) || (row.clientName?.slice(0, 2).toUpperCase() ?? '')
+          return (
+            <div className="flex items-center gap-2">
+              <Avatar className="h-8 w-8 shrink-0 rounded-lg">
+                <AvatarImage src={undefined} alt={displayName} />
+                <AvatarFallback className="rounded-lg text-xs">{initials || '?'}</AvatarFallback>
+              </Avatar>
+              <span className="truncate">{displayName}</span>
+            </div>
+          )
+        },
+      },
+      { key: 'company', label: 'Entreprise', sortable: true, sortLabel: 'alpha', render: (v) => (v ? String(v) : <span className="text-foreground/70">Non renseigné</span>) },
+      { key: 'lastName', label: 'Nom', sortable: true, sortLabel: 'alpha' },
+      { key: 'firstName', label: 'Prénom', sortable: true, sortLabel: 'alpha' },
+      {
+        key: 'email',
+        label: 'Email',
+        sortable: true,
+        sortLabel: 'alpha',
+        render: (value) => value ? (
+          <a href={`mailto:${String(value)}`} className="text-blue-600 hover:underline">
+            {String(value)}
+          </a>
+        ) : (
+          <span className="text-foreground/70">Non renseigné</span>
+        ),
+      },
+      {
+        key: 'phone',
+        label: 'Téléphone',
+        sortable: true,
+        sortLabel: 'alpha',
+        render: (value) => value ? (
+          <a href={`tel:${String(value)}`} className="text-blue-600 hover:underline">
+            {String(value)}
+          </a>
+        ) : (
+          <span className="text-foreground/70">Non renseigné</span>
+        ),
+      },
+      {
+        key: 'website',
+        label: 'Site web',
+        sortable: true,
+        sortLabel: 'alpha',
+        render: (value) => value ? (
+          <a href={String(value).startsWith('http') ? String(value) : `https://${String(value)}`} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+            {String(value)}
+          </a>
+        ) : (
+          <span className="text-foreground/70">Non renseigné</span>
+        ),
+      },
+    ],
+    []
+  )
+
+  const visibleColumns = useMemo(
+    () => columns.filter((c) => columnVisibility[String(c.key)] !== false),
+    [columns, columnVisibility]
+  )
+
+  const columnsPopover = (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button variant="outline" size="sm" aria-label="Afficher ou masquer des colonnes">
+          <Columns3 className="h-4 w-4 mr-2" />
+          Colonnes
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-56 p-2" align="end">
+        <p className="text-sm font-medium text-foreground px-2 py-1.5">Colonnes visibles</p>
+        <p className="text-xs text-muted-foreground px-2 pb-2">Au moins une colonne doit rester affichée.</p>
+        <div className="space-y-1 max-h-64 overflow-y-auto">
+          {columns.map((col) => (
+            <label
+              key={String(col.key)}
+              className="flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-muted/50 cursor-pointer text-sm"
+            >
+              <Checkbox
+                checked={columnVisibility[String(col.key)] !== false}
+                onCheckedChange={() => toggleColumn(String(col.key))}
+                aria-label={`Afficher ${col.label}`}
+              />
+              <span>{col.label}</span>
+            </label>
+          ))}
+        </div>
+      </PopoverContent>
+    </Popover>
+  )
+
+  if (loading && clients.length === 0) {
+    return (
+      <div className="w-full min-w-0 py-4 sm:py-6 space-y-4">
+        <div className="flex justify-between items-center">
+          <Skeleton className="h-9 w-32" />
+          <div className="flex gap-2">
+            <Skeleton className="h-10 w-28" />
+            <Skeleton className="h-10 w-36" />
+          </div>
+        </div>
+        <Skeleton className="h-10 w-full" />
+        <div className="space-y-2">
+          {[1, 2, 3, 4, 5].map((i) => (
+            <Skeleton key={i} className="h-12 w-full" />
+          ))}
+        </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="w-full min-w-0 py-4 sm:py-6 space-y-4">
+        <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-destructive">
+          <p className="font-medium">Erreur lors du chargement des clients</p>
+          <p className="text-sm mt-1">{error.message}</p>
+          <Button variant="outline" size="sm" className="mt-3" onClick={() => mutate()}>
+            Réessayer
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-6">
+      <Card className="border-primary/20 bg-primary/5">
+        <div className="p-4">
+          <p className="text-sm text-foreground/80">
+            💡 <strong>Astuce :</strong> Utilisez les boutons d&apos;actions (✏️ Modifier, 🗑️ Supprimer) dans la colonne de droite pour gérer vos clients.
+          </p>
+        </div>
+      </Card>
+      
+      <DataTable
+        data={clients}
+        columns={visibleColumns}
+        toolbarExtra={columnsPopover}
+        onAdd={handleAdd}
+        onEdit={handleEdit}
+        onDelete={handleDelete}
+        onExport={handleExport}
+        searchPlaceholder="Rechercher un client..."
+        emptyMessage="Aucun client. Créez votre premier client."
+        virtualized
+      />
+
+      {/* Add/Edit Client Dialog */}
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>
+              {editingClient ? 'Modifier le client' : 'Nouveau client'}
+            </DialogTitle>
+          </DialogHeader>
+          
+          <form onSubmit={(e) => { e.preventDefault(); handleSave() }} className="space-y-6 py-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+              <div className="space-y-2">
+                <Label htmlFor="firstName">Prénom *</Label>
+                <Input
+                  id="firstName"
+                  value={formData.firstName || ''}
+                  onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
+                  placeholder="Prénom"
+                  autoFocus
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="lastName">Nom *</Label>
+                <Input
+                  id="lastName"
+                  value={formData.lastName || ''}
+                  onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
+                  placeholder="Nom"
+                />
+              </div>
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                type="email"
+                value={formData.email || ''}
+                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                placeholder="email@exemple.com"
+              />
+            </div>
+            
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+              <div className="space-y-2">
+                <Label htmlFor="phone">Téléphone</Label>
+                <Input
+                  id="phone"
+                  value={formData.phone || ''}
+                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                  placeholder="06 12 34 56 78"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="company">Entreprise</Label>
+                <Input
+                  id="company"
+                  value={formData.company || ''}
+                  onChange={(e) => setFormData({ ...formData, company: e.target.value })}
+                  placeholder="Nom de l'entreprise"
+                />
+              </div>
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="website">Site web</Label>
+              <Input
+                id="website"
+                type="url"
+                value={formData.website || ''}
+                onChange={(e) => setFormData({ ...formData, website: e.target.value })}
+                placeholder="https://www.exemple.com"
+              />
+            </div>
+
+            {saveError && (
+              <p className="text-sm text-destructive bg-destructive/10 rounded-md px-3 py-2">
+                {saveError}
+              </p>
+            )}
+            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end sm:space-x-2 pt-4">
+              <Button variant="outline" type="button" onClick={() => { setIsDialogOpen(false); setSaveError(null) }}>
+                Annuler
+              </Button>
+              <Button type="submit">
+                {editingClient ? 'Modifier' : 'Créer'}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+    </div>
+  )
+}

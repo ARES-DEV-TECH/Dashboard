@@ -1,13 +1,20 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Logo } from '@/components/logo'
-import { useAuth } from '@/components/auth-provider'
 import { Input } from '@/components/ui/input'
+import { useAuth } from '@/components/auth-provider'
+import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Label } from '@/components/ui/label'
-import { Eye, EyeOff, Mail, Lock, User, Building, ArrowRight, Loader2, CheckCircle } from 'lucide-react'
+import {
+  Field,
+  FieldGroup,
+  FieldLabel,
+  FieldDescription,
+} from '@/components/ui/field'
+import { Eye, EyeOff, Loader2, CheckCircle } from 'lucide-react'
 import { electronFetch } from '@/lib/electron-api'
 import { toast } from 'sonner'
 
@@ -18,7 +25,7 @@ export default function RegisterPage() {
     confirmPassword: '',
     firstName: '',
     lastName: '',
-    company: ''
+    company: '',
   })
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
@@ -37,7 +44,7 @@ export default function RegisterPage() {
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({
       ...formData,
-      [e.target.name]: e.target.value
+      [e.target.name]: e.target.value,
     })
   }
 
@@ -72,7 +79,7 @@ export default function RegisterPage() {
           password: formData.password,
           firstName: formData.firstName,
           lastName: formData.lastName,
-          company: formData.company
+          company: formData.company,
         }),
       })
 
@@ -87,12 +94,12 @@ export default function RegisterPage() {
           router.refresh()
         }, 3000)
       } else {
-        const msg = data.error || 'Erreur lors de l\'inscription'
+        const msg = data.error || "Erreur lors de l'inscription"
         setError(msg)
         toast.error('Inscription', { description: msg })
       }
-    } catch (error) {
-      const msg = 'Erreur lors de l\'inscription'
+    } catch {
+      const msg = "Erreur lors de l'inscription"
       setError(msg)
       toast.error('Inscription', { description: msg })
     } finally {
@@ -102,212 +109,184 @@ export default function RegisterPage() {
 
   if (authLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="bg-muted flex min-h-svh flex-col items-center justify-center">
         <div className="animate-pulse text-muted-foreground">Chargement...</div>
       </div>
     )
   }
 
-  if (user) {
-    return null
-  }
+  if (user) return null
 
   if (success) {
     return (
-      <div className="min-h-screen flex items-center justify-center px-4" style={{ backgroundColor: '#0a0a0a' }}>
-        <Card className="w-full max-w-md shadow-2xl text-center" style={{ backgroundColor: '#1e293b', borderColor: 'rgba(255,255,255,0.15)' }}>
-          <CardContent className="pt-8 pb-8">
-            <div className="mx-auto w-16 h-16 rounded-full flex items-center justify-center mb-6" style={{ backgroundColor: '#667eea' }}>
-              <CheckCircle className="w-8 h-8" style={{ color: '#ffffff' }} />
-            </div>
-            <h2 className="text-2xl font-bold mb-2" style={{ color: '#fafafa' }}>Inscription enregistrée</h2>
-            <p className="mb-6" style={{ color: '#a3a3a3' }}>Un email de confirmation vous a été envoyé. Cliquez sur le lien pour activer votre compte, puis connectez-vous.</p>
-            <p className="text-sm mb-3" style={{ color: '#71717a' }}>Redirection vers la page de connexion...</p>
-            <div className="w-full rounded-full h-2" style={{ backgroundColor: '#262626' }}>
-              <div className="rounded-full h-2 animate-pulse" style={{ backgroundColor: '#667eea' }}></div>
-            </div>
-          </CardContent>
-        </Card>
+      <div className="bg-muted flex min-h-svh flex-col items-center justify-center p-6 md:p-10">
+        <div className="w-full max-w-sm">
+          <Card>
+            <CardContent className="pt-8 pb-8 text-center space-y-6">
+              <div className="mx-auto size-16 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+                <CheckCircle className="size-8" />
+              </div>
+              <div className="space-y-2">
+                <h2 className="text-2xl font-bold">Inscription enregistrée</h2>
+                <p className="text-muted-foreground text-sm">
+                  Un email de confirmation vous a été envoyé. Cliquez sur le lien pour activer votre compte, puis connectez-vous.
+                </p>
+              </div>
+              <p className="text-sm text-muted-foreground">Redirection vers la page de connexion...</p>
+              <div className="w-full rounded-full h-1 bg-secondary overflow-hidden">
+                <div className="h-full bg-primary animate-pulse origin-left w-full" style={{ animationDuration: '3s' }} />
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="auth-page min-h-screen flex items-center justify-center px-4 py-8 bg-background">
-      <Card className="w-full max-w-md border shadow-xl" style={{ backgroundColor: '#1e293b', borderColor: 'rgba(255,255,255,0.15)' }}>
-        <CardHeader className="text-center space-y-4 pb-6">
-          <div className="mx-auto flex justify-center">
-            <Logo size={56} />
-          </div>
-          <div>
-            <CardTitle className="text-2xl font-bold mb-2" style={{ color: '#fafafa' }}>Inscription</CardTitle>
-            <CardDescription style={{ color: '#a3a3a3' }}>
-              Créez votre compte
+    <div className="bg-muted flex min-h-svh flex-col items-center justify-center p-6 md:p-10">
+      <div className="w-full max-w-sm md:max-w-md">
+        <Link href="/" className="flex items-center gap-2 self-center font-medium mb-6 justify-center">
+          <Logo size={32} />
+          <span className="sr-only">Tableau de bord</span>
+        </Link>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-2xl">Créer un compte</CardTitle>
+            <CardDescription>
+              Entrez vos informations ci-dessous pour créer votre compte
             </CardDescription>
-          </div>
-        </CardHeader>
-        
-        <CardContent className="space-y-6">
-          <form onSubmit={handleSubmit} className="space-y-5">
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="firstName" className="font-medium" style={{ color: '#fafafa' }}>
-                    Prénom
-                  </Label>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleSubmit} noValidate>
+              <FieldGroup>
+                <div className="grid grid-cols-2 gap-4">
+                  <Field>
+                    <FieldLabel htmlFor="firstName">Prénom</FieldLabel>
+                    <Input
+                      id="firstName"
+                      name="firstName"
+                      type="text"
+                      value={formData.firstName}
+                      onChange={handleChange}
+                      required
+                      placeholder="Jean"
+                    />
+                  </Field>
+                  <Field>
+                    <FieldLabel htmlFor="lastName">Nom</FieldLabel>
+                    <Input
+                      id="lastName"
+                      name="lastName"
+                      type="text"
+                      value={formData.lastName}
+                      onChange={handleChange}
+                      required
+                      placeholder="Dupont"
+                    />
+                  </Field>
+                </div>
+                <Field>
+                  <FieldLabel htmlFor="email">Email</FieldLabel>
                   <Input
-                    id="firstName"
-                    name="firstName"
+                    id="email"
+                    name="email"
+                    type="email"
+                    value={formData.email}
+                    onChange={handleChange}
+                    required
+                    placeholder="votre@email.com"
+                  />
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor="company">Entreprise (optionnel)</FieldLabel>
+                  <Input
+                    id="company"
+                    name="company"
                     type="text"
-                    value={formData.firstName}
+                    value={formData.company}
                     onChange={handleChange}
-                    required
-                    className="border focus:!border-primary focus:!ring-primary/20 transition-all duration-200 pl-4 pr-4 py-3 rounded-lg"
-                    placeholder="Jean"
-                    style={{ backgroundColor: '#e5e5e5', color: '#0a0a0a', caretColor: '#0a0a0a', borderColor: '#737373' }}
+                    placeholder="Mon Entreprise"
                   />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="lastName" className="font-medium" style={{ color: '#fafafa' }}>
-                    Nom
-                  </Label>
-                  <Input
-                    id="lastName"
-                    name="lastName"
-                    type="text"
-                    value={formData.lastName}
-                    onChange={handleChange}
-                    required
-                    className="border focus:!border-primary focus:!ring-primary/20 transition-all duration-200 pl-4 pr-4 py-3 rounded-lg"
-                    placeholder="Dupont"
-                    style={{ backgroundColor: '#e5e5e5', color: '#0a0a0a', caretColor: '#0a0a0a', borderColor: '#737373' }}
-                  />
-                </div>
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="email" className="font-medium" style={{ color: '#fafafa' }}>
-                  Email
-                </Label>
-                <Input
-                  id="email"
-                  name="email"
-                  type="email"
-                  value={formData.email}
-                  onChange={handleChange}
-                  required
-                  className="border focus:!border-primary focus:!ring-primary/20 transition-all duration-200 pl-4 pr-4 py-3 rounded-lg"
-                  placeholder="votre@email.com"
-                  style={{ backgroundColor: '#e5e5e5', color: '#0a0a0a', caretColor: '#0a0a0a', borderColor: '#737373' }}
-                />
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="company" className="font-medium" style={{ color: '#fafafa' }}>
-                  Entreprise (optionnel)
-                </Label>
-                <Input
-                  id="company"
-                  name="company"
-                  type="text"
-                  value={formData.company}
-                  onChange={handleChange}
-                  className="border focus:!border-primary focus:!ring-primary/20 transition-all duration-200 pl-4 pr-4 py-3 rounded-lg"
-                  placeholder="Mon Entreprise"
-                  style={{ backgroundColor: '#e5e5e5', color: '#0a0a0a', caretColor: '#0a0a0a', borderColor: '#737373' }}
-                />
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="password" className="font-medium" style={{ color: '#fafafa' }}>
-                  Mot de passe
-                </Label>
-                <div className="relative">
-                  <Input
-                    id="password"
-                    name="password"
-                    type={showPassword ? "text" : "password"}
-                    value={formData.password}
-                    onChange={handleChange}
-                    required
-                    className="border focus:!border-primary focus:!ring-primary/20 transition-all duration-200 pl-4 pr-12 py-3 rounded-lg"
-                    placeholder="••••••••"
-                    style={{ backgroundColor: '#e5e5e5', color: '#0a0a0a', caretColor: '#0a0a0a', borderColor: '#737373' }}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 transform -translate-y-1/2 transition-colors hover:opacity-80"
-                    style={{ color: '#a3a3a3' }}
-                    aria-label={showPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
-                  >
-                    {showPassword ? <EyeOff className="w-5 h-5" aria-hidden /> : <Eye className="w-5 h-5" aria-hidden />}
-                  </button>
-                </div>
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="confirmPassword" className="font-medium" style={{ color: '#fafafa' }}>
-                  Confirmer le mot de passe
-                </Label>
-                <div className="relative">
-                  <Input
-                    id="confirmPassword"
-                    name="confirmPassword"
-                    type={showConfirmPassword ? "text" : "password"}
-                    value={formData.confirmPassword}
-                    onChange={handleChange}
-                    required
-                    className="border focus:!border-primary focus:!ring-primary/20 transition-all duration-200 pl-4 pr-12 py-3 rounded-lg"
-                    placeholder="••••••••"
-                    style={{ backgroundColor: '#e5e5e5', color: '#0a0a0a', caretColor: '#0a0a0a', borderColor: '#737373' }}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                    className="absolute right-3 top-1/2 transform -translate-y-1/2 transition-colors hover:opacity-80"
-                    style={{ color: '#a3a3a3' }}
-                    aria-label={showConfirmPassword ? 'Masquer la confirmation du mot de passe' : 'Afficher la confirmation du mot de passe'}
-                  >
-                    {showConfirmPassword ? <EyeOff className="w-5 h-5" aria-hidden /> : <Eye className="w-5 h-5" aria-hidden />}
-                  </button>
-                </div>
-              </div>
-            </div>
-            
-            {error && (
-              <div className="rounded-lg p-3 text-sm text-center animate-in slide-in-from-top-2 duration-200" style={{ backgroundColor: 'rgba(220, 38, 38, 0.15)', border: '1px solid rgba(220, 38, 38, 0.3)', color: '#dc2626' }}>
-                {error}
-              </div>
-            )}
-            
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full flex items-center justify-center gap-2 font-semibold py-3 rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-              style={{ backgroundColor: '#667eea', color: '#ffffff' }}
-            >
-              {loading ? (
-                <div className="flex items-center gap-2">
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                  Création du compte...
-                </div>
-              ) : (
-                'Créer mon compte'
-              )}
-            </button>
-          </form>
-          
-          <div className="text-center">
-            <p className="text-sm" style={{ color: '#a3a3a3' }}>
-              Déjà un compte ?{' '}
-              <a href="/login" className="font-medium hover:underline" style={{ color: '#667eea' }}>
-                Se connecter
-              </a>
-            </p>
-          </div>
-        </CardContent>
-      </Card>
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor="password">Mot de passe</FieldLabel>
+                  <div className="relative">
+                    <Input
+                      id="password"
+                      name="password"
+                      type={showPassword ? 'text' : 'password'}
+                      value={formData.password}
+                      onChange={handleChange}
+                      required
+                      className="pr-10"
+                      placeholder="••••••••"
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                      aria-label={showPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
+                    >
+                      {showPassword ? <EyeOff className="size-4 text-muted-foreground" aria-hidden /> : <Eye className="size-4 text-muted-foreground" aria-hidden />}
+                    </Button>
+                  </div>
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor="confirmPassword">Confirmer le mot de passe</FieldLabel>
+                  <div className="relative">
+                    <Input
+                      id="confirmPassword"
+                      name="confirmPassword"
+                      type={showConfirmPassword ? 'text' : 'password'}
+                      value={formData.confirmPassword}
+                      onChange={handleChange}
+                      required
+                      className="pr-10"
+                      placeholder="••••••••"
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                      aria-label={showConfirmPassword ? 'Masquer la confirmation' : 'Afficher la confirmation'}
+                    >
+                      {showConfirmPassword ? <EyeOff className="size-4 text-muted-foreground" aria-hidden /> : <Eye className="size-4 text-muted-foreground" aria-hidden />}
+                    </Button>
+                  </div>
+                </Field>
+                {error && (
+                  <div className="rounded-lg p-3 text-sm text-center bg-destructive/10 border border-destructive/20 text-destructive" role="alert">
+                    {error}
+                  </div>
+                )}
+                <Field>
+                  <Button type="submit" disabled={loading} className="w-full" size="lg">
+                    {loading ? (
+                      <>
+                        <Loader2 className="mr-2 size-5 animate-spin" />
+                        Création du compte...
+                      </>
+                    ) : (
+                      'Créer mon compte'
+                    )}
+                  </Button>
+                  <FieldDescription className="text-center mt-4">
+                    Vous avez déjà un compte ?{' '}
+                    <Link href="/login" className="underline underline-offset-4">
+                      Se connecter
+                    </Link>
+                  </FieldDescription>
+                </Field>
+              </FieldGroup>
+            </form>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   )
 }

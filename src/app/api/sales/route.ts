@@ -154,6 +154,8 @@ export async function POST(request: NextRequest) {
         year: new Date(validatedData.saleDate).getFullYear(),
         invoiceNo,
         userId: user.id,
+        endDate: validatedData.endDate ? new Date(validatedData.endDate) : null,
+        status: validatedData.status || 'paid',
       }
     })
 

@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
     const { sendEmail, isEmailConfigured } = await import('@/lib/email')
     const safeFirstName = user.firstName?.trim()
     const greeting = safeFirstName ? `Bonjour ${escapeHtml(safeFirstName)},` : 'Bonjour,'
-    await sendEmail({
+    const emailSent = await sendEmail({
       to: trimmedEmail,
       subject: 'Réinitialisation de votre mot de passe - ARES Dashboard',
       html: `
@@ -53,12 +53,17 @@ export async function POST(request: NextRequest) {
       `,
     })
 
-    const json: { message: string; resetLink?: string; emailNotConfigured?: boolean } = {
+    const json: { message: string; resetLink?: string; emailNotConfigured?: boolean; emailSendFailed?: boolean } = {
       message: 'Si un compte existe avec cet email, vous recevrez un lien de réinitialisation.',
     }
     if (user && !isEmailConfigured()) {
       json.resetLink = resetUrl
       if (process.env.NODE_ENV === 'production') json.emailNotConfigured = true
+    }
+    if (user && isEmailConfigured() && !emailSent) {
+      console.error('forgot-password: sendEmail failed for', trimmedEmail)
+      json.message = 'Un problème technique a empêché l\'envoi de l\'email. Vérifiez la configuration SMTP/Resend ou réessayez plus tard.'
+      json.emailSendFailed = true
     }
     return NextResponse.json(json, { status: 200 })
   } catch (e) {

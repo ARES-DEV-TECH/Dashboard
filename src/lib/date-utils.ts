@@ -31,21 +31,16 @@ export interface PresetOption {
 }
 
 export const PRESET_OPTIONS: PresetOption[] = [
-  { value: 'today', label: 'Aujourd\'hui', icon: '📅', description: 'Données du jour' },
-  { value: 'yesterday', label: 'Hier', icon: '⏮️', description: 'Données d\'hier' },
-  { value: 'thisWeek', label: 'Cette semaine', icon: '📊', description: 'Lundi à dimanche' },
-  { value: 'lastWeek', label: 'Semaine dernière', icon: '⏪', description: 'Semaine précédente' },
-  { value: 'thisMonth', label: 'Ce mois', icon: '📈', description: 'Du 1er au dernier jour' },
-  { value: 'lastMonth', label: 'Mois dernier', icon: '📉', description: 'Mois précédent' },
-  { value: 'thisQuarter', label: 'Ce trimestre', icon: '🎯', description: 'Trimestre en cours' },
+  { value: 'thisMonth', label: 'Ce mois', icon: '📅', description: 'Mois en cours' },
+  { value: 'lastMonth', label: 'Mois dernier', icon: '⏮️', description: 'Mois précédent' },
+  { value: 'thisQuarter', label: 'Ce trimestre', icon: '📊', description: 'Trimestre en cours' },
   { value: 'lastQuarter', label: 'Trimestre dernier', icon: '⏪', description: 'Trimestre précédent' },
   { value: 'thisYear', label: 'Cette année', icon: '🗓️', description: 'Année en cours' },
   { value: 'lastYear', label: 'Année dernière', icon: '📅', description: 'Année précédente' },
-  { value: 'ytd', label: 'YTD', icon: '🗓️', description: 'Du 1er janvier à aujourd\'hui' },
+  { value: 'ytd', label: 'YTD', icon: '📈', description: 'Depuis le 1er janvier' },
   { value: 'last12Months', label: '12 derniers mois', icon: '📅', description: '12 mois glissants' },
-  { value: 'last30Days', label: '30 derniers jours', icon: '⏰', description: '30 jours glissants' },
-  { value: 'last90Days', label: '90 derniers jours', icon: '📊', description: '90 jours glissants' },
-  { value: 'custom', label: 'Personnalisé', icon: '⚙️', description: 'Plage personnalisée' }
+  { value: 'last30Days', label: '30 derniers jours', icon: '⏱️', description: '30 jours glissants' },
+  { value: 'custom', label: 'Personnalisé', icon: '⚙️', description: 'Plage libre' }
 ]
 
 export function calculatePresetDates(preset: PresetFilter): DateRange {
@@ -196,8 +191,8 @@ export function buildApiParams(range: DateRange): string {
   // Déterminer le type de plage selon la logique de l'API dashboard
   const daysDiff = Math.ceil((range.end.getTime() - range.start.getTime()) / (1000 * 60 * 60 * 24))
   
-  if (range.preset === 'custom') {
-    // Pour les plages personnalisées, utiliser 'custom' et ajouter les dates
+  if (range.preset === 'custom' || range.preset === 'ytd' || range.preset === 'last12Months' || range.preset === 'last30Days' || range.preset === 'last90Days') {
+    // Pour les plages personnalisées et spéciales, utiliser 'custom' et ajouter les dates
     params.set('range', 'custom')
     params.set('startDate', range.start.toISOString().split('T')[0])
     params.set('endDate', range.end.toISOString().split('T')[0])
@@ -206,8 +201,9 @@ export function buildApiParams(range: DateRange): string {
     params.set('range', 'month')
     params.set('month', (range.start.getMonth() + 1).toString())
   } else if (daysDiff <= 93) {
-    // Trimestre
+    // Trimestre : envoyer year + month pour que l'API et le graphique utilisent le bon trimestre (ce trimestre ou trimestre dernier)
     params.set('range', 'quarter')
+    params.set('month', (range.start.getMonth() + 1).toString())
   } else {
     // Année complète
     params.set('range', 'year')

@@ -11,6 +11,7 @@
   --color-sidebar-primary: var(--sidebar-primary);
   --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
   --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
   --color-ring: var(--ring);
   --color-input: var(--input);
   --color-border: var(--border);
@@ -21,6 +22,12 @@
   --color-primary: var(--primary);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -33,20 +40,31 @@
   --foreground: #f1f5f9;
   --card: #1e293b;
   --card-foreground: #f1f5f9;
+  --popover: #1e293b;
+  --popover-foreground: #f1f5f9;
   --primary: #667eea;
   --primary-foreground: #ffffff;
+  --secondary: #334155;
+  --secondary-foreground: #f1f5f9;
   --muted: #334155;
   --muted-foreground: #94a3b8;
-  --accent: #6366f1;
+  --accent: #334155;
+  --accent-foreground: #f1f5f9;
   --destructive: #dc2626;
   --border: rgba(255, 255, 255, 0.15);
   --input: #334155;
   --ring: #667eea;
   --sidebar-foreground: #f1f5f9;
+  --sidebar: #0f172a;
   --sidebar-primary: #667eea;
   --sidebar-primary-foreground: #ffffff;
   --sidebar-accent: #1e293b;
   --sidebar-border: rgba(255, 255, 255, 0.1);
+  --chart-1: #667eea;
+  --chart-2: #6366f1;
+  --chart-3: #9333ea;
+  --chart-4: #8b5cf6;
+  --chart-5: #94a3b8;
 }
 
 @layer base {
@@ -120,9 +138,10 @@
 .sidebar-content .sidebar-nav-item {
   transition: background-color 0.15s ease, color 0.15s ease;
 }
-.sidebar-content .sidebar-nav-item-active {
-  border-left: 3px solid var(--sidebar-primary);
-  padding-left: calc(1rem - 3px);
+.sidebar-content .sidebar-nav-item-active,
+.sidebar-content [data-active="true"] {
+  background-color: var(--sidebar-accent);
+  color: var(--sidebar-foreground);
 }
 .sidebar-content .sidebar-section-label {
   letter-spacing: 0.05em;
@@ -167,10 +186,21 @@
   background: rgba(255, 255, 255, 0.1);
 }
 
+/* Barre de progression navigation (perçu de fluidité) */
+@keyframes navigation-progress {
+  0% { transform: scaleX(0); transform-origin: left; }
+  50% { transform: scaleX(0.7); transform-origin: left; }
+  100% { transform: scaleX(1); transform-origin: left; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
+  }
+  /* Empêcher l'accélération extrême des boucles infinies (comme animate-pulse) qui crée un effet stroboscopique */
+  .animate-pulse, .animate-spin {
+    animation: none !important;
   }
   html { scroll-behavior: auto; }
 }

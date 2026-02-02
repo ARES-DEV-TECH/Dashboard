@@ -14,7 +14,7 @@
 
 - [ ] **DATABASE_POOLER_URL** configuré en prod avec l’URL du pooler Supabase (port **6543**, pas 5432).
 - [ ] Paramètres recommandés dans l’URL : `?pgbouncer=true&connect_timeout=30&connection_limit=1`
-- [ ] Sur Vercel, le code utilise déjà `DATABASE_POOLER_URL` si présent (voir `src/lib/db.ts`). Il suffit d’ajouter la variable dans les paramètres du projet.
+- [ ] Sur Vercel, le code utilise déjà `DATABASE_POOLER_URL` si présent (voir `src/lib/db.ts`). Si `connection_limit` est absent, il est ajouté automatiquement (recommandé en serverless).
 
 ### Migrations et index
 

@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
       orderBy: { clientName: 'asc' },
     })
     return NextResponse.json(clients, {
-      headers: { 'Cache-Control': 'private, max-age=60, stale-while-revalidate=30' },
+      headers: { 'Cache-Control': 'private, max-age=0, must-revalidate' },
     })
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error'

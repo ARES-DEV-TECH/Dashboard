@@ -19,12 +19,14 @@ export default function ForgotPasswordPage() {
 
   const [resetLink, setResetLink] = useState<string | null>(null)
   const [emailNotConfigured, setEmailNotConfigured] = useState(false)
+  const [emailSendFailed, setEmailSendFailed] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
     setResetLink(null)
     setEmailNotConfigured(false)
+    setEmailSendFailed(false)
     setLoading(true)
     try {
       const res = await electronFetch('/api/auth/forgot-password', {
@@ -34,10 +36,16 @@ export default function ForgotPasswordPage() {
       })
       const data = await res.json().catch(() => ({}))
       if (res.ok) {
-        setSent(true)
-        if (data.resetLink) setResetLink(data.resetLink)
-        if (data.emailNotConfigured) setEmailNotConfigured(true)
-        toast.success('Mot de passe oublié', { description: 'Si un compte existe, un email a été envoyé.' })
+        if (data.emailSendFailed) {
+          setError(data.message || 'L\'envoi de l\'email a échoué.')
+          setEmailSendFailed(true)
+          toast.error('Mot de passe oublié', { description: data.message })
+        } else {
+          setSent(true)
+          if (data.resetLink) setResetLink(data.resetLink)
+          if (data.emailNotConfigured) setEmailNotConfigured(true)
+          toast.success('Mot de passe oublié', { description: 'Si un compte existe, un email a été envoyé.' })
+        }
       } else {
         const msg = data.error || 'Une erreur est survenue.'
         setError(msg)
@@ -104,8 +112,23 @@ export default function ForgotPasswordPage() {
                 />
               </div>
               {error && (
-                <div className="rounded-lg p-3 text-sm text-center bg-destructive/10 border border-destructive/30 text-destructive">
-                  {error}
+                <div className="rounded-lg p-3 text-sm text-center bg-destructive/10 border border-destructive/30 text-destructive space-y-3">
+                  <p>{error}</p>
+                  {emailSendFailed && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={loading}
+                      onClick={() => handleSubmit({ preventDefault: () => {} } as React.FormEvent<HTMLFormElement>)}
+                      className="flex items-center gap-2"
+                    >
+                      {loading ? (
+                        <Loader2 className="size-4 animate-spin" />
+                      ) : null}
+                      Renvoyer le mail
+                    </Button>
+                  )}
                 </div>
               )}
               <Button

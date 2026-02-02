@@ -12,8 +12,7 @@ import { useVirtualizer } from '@tanstack/react-virtual'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Badge } from '@/components/ui/badge'
-import { ChevronLeft, ChevronRight, Search, Download, Upload, Plus, Edit, Trash2, FileText, Receipt } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Search, Download, Upload, Plus, Edit, Trash2, FileText, Receipt, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react'
 import { useState, useMemo } from 'react'
 
 const ROW_HEIGHT = 48
@@ -25,6 +24,8 @@ export interface Column<T> {
   label: string
   render?: (value: unknown, row: T) => React.ReactNode
   sortable?: boolean
+  /** 'alpha' = A-Z / Z-A, 'numeric' = Croissant / Décroissant (défaut pour dates et nombres). */
+  sortLabel?: 'alpha' | 'numeric'
   className?: string
 }
 
@@ -46,6 +47,8 @@ interface DataTableProps<T extends Record<string, unknown>> {
   emptyMessage?: string
   /** Active la virtualisation pour les listes > ~200 lignes (scroll fluide). */
   virtualized?: boolean
+  /** Contenu additionnel dans la barre d’outils (ex. sélecteur de colonnes). */
+  toolbarExtra?: React.ReactNode
   className?: string
 }
 
@@ -65,6 +68,7 @@ export function DataTable<T extends Record<string, unknown>>({
   onGenerateInvoice,
   emptyMessage,
   virtualized = false,
+  toolbarExtra,
   className
 }: DataTableProps<T>) {
   const [searchTerm, setSearchTerm] = useState("")
@@ -86,12 +90,35 @@ export function DataTable<T extends Record<string, unknown>>({
   const sortedData = useMemo(() => {
     if (!filteredData.length) return []
     if (!sortField) return filteredData
+    const dir = sortDirection === 'asc' ? 1 : -1
     return [...filteredData].sort((a, b) => {
-      const aValue = a[sortField]
-      const bValue = b[sortField]
-      
-      if (aValue < bValue) return sortDirection === 'asc' ? -1 : 1
-      if (aValue > bValue) return sortDirection === 'asc' ? 1 : -1
+      let aVal: unknown = a[sortField]
+      let bVal: unknown = b[sortField]
+      const aEmpty = aVal == null || aVal === ''
+      const bEmpty = bVal == null || bVal === ''
+      if (aEmpty && bEmpty) return 0
+      if (aEmpty) return dir
+      if (bEmpty) return -dir
+      if (aVal instanceof Date && bVal instanceof Date) {
+        const cmp = Math.sign(aVal.getTime() - bVal.getTime())
+        return cmp * dir
+      }
+      if (typeof aVal === 'number' && typeof bVal === 'number') {
+        const cmp = Math.sign(aVal - bVal)
+        return cmp * dir
+      }
+      const aStr = typeof aVal === 'string' && /^\d{4}-\d{2}-\d{2}/.test(aVal)
+        ? new Date(aVal).getTime()
+        : String(aVal).toLowerCase()
+      const bStr = typeof bVal === 'string' && /^\d{4}-\d{2}-\d{2}/.test(bVal)
+        ? new Date(bVal).getTime()
+        : String(bVal).toLowerCase()
+      if (typeof aStr === 'number' && typeof bStr === 'number') {
+        const cmp = Math.sign(aStr - bStr)
+        return cmp * dir
+      }
+      if (aStr < bStr) return -dir
+      if (aStr > bStr) return dir
       return 0
     })
   }, [filteredData, sortField, sortDirection])
@@ -172,6 +199,7 @@ export function DataTable<T extends Record<string, unknown>>({
         </div>
         
         <div className="flex flex-wrap items-center gap-2 shrink-0">
+          {toolbarExtra}
           {onImport && (
             <Button variant="outline" size="sm" onClick={onImport}>
               <Upload className="h-4 w-4 mr-2" />
@@ -202,24 +230,48 @@ export function DataTable<T extends Record<string, unknown>>({
         <Table className="min-w-[600px]">
           <TableHeader>
             <TableRow>
-              {columns.map((column) => (
-                <TableHead
-                  key={String(column.key)}
-                  className={`${column.className || ''} ${
-                    column.sortable ? 'cursor-pointer hover:bg-muted/50' : ''
-                  }`}
-                  onClick={() => column.sortable && handleSort(column.key)}
-                >
-                  <div className="flex items-center space-x-1">
-                    <span>{column.label}</span>
-                    {column.sortable && sortField === column.key && (
-                      <Badge variant="secondary" className="text-xs">
-                        {sortDirection === 'asc' ? '↑' : '↓'}
-                      </Badge>
-                    )}
-                  </div>
-                </TableHead>
-              ))}
+              {columns.map((column) => {
+                const isAlpha = column.sortLabel === 'alpha'
+                const sortHint = sortField === column.key
+                  ? isAlpha
+                    ? (sortDirection === 'asc' ? 'A-Z' : 'Z-A')
+                    : (sortDirection === 'asc' ? 'Croissant' : 'Décroissant')
+                  : isAlpha
+                    ? 'Cliquer : A-Z / Z-A'
+                    : 'Cliquer : Croissant / Décroissant'
+                return (
+                  <TableHead
+                    key={String(column.key)}
+                    className={`${column.className || ''} ${
+                      column.sortable ? 'cursor-pointer hover:bg-muted/50 select-none' : ''
+                    }`}
+                    onClick={() => column.sortable && handleSort(column.key)}
+                    title={column.sortable ? sortHint : undefined}
+                  >
+                    <div className="flex items-center gap-1.5">
+                      <span>{column.label}</span>
+                      {column.sortable && (
+                        <span className="inline-flex items-center gap-1 text-muted-foreground text-xs" aria-label={sortHint}>
+                          {sortField === column.key ? (
+                            sortDirection === 'asc' ? (
+                              <ArrowUp className="h-4 w-4 shrink-0" />
+                            ) : (
+                              <ArrowDown className="h-4 w-4 shrink-0" />
+                            )
+                          ) : (
+                            <ArrowUpDown className="h-4 w-4 shrink-0 opacity-60" />
+                          )}
+                          {sortField === column.key && (
+                            <span className="hidden sm:inline font-normal">
+                              {isAlpha ? (sortDirection === 'asc' ? 'A-Z' : 'Z-A') : (sortDirection === 'asc' ? 'Croissant' : 'Décroissant')}
+                            </span>
+                          )}
+                        </span>
+                      )}
+                    </div>
+                  </TableHead>
+                )
+              })}
               {(onEdit || onDelete || onGenerateQuote || onGenerateInvoice) && (
                 <TableHead className="w-40 text-center">Actions</TableHead>
               )}

@@ -6,9 +6,9 @@ export const clientSchema = z.object({
   firstName: z.string().min(1, 'Le prénom est requis'),
   lastName: z.string().min(1, 'Le nom est requis'),
   email: z.string().email('Email invalide').optional().or(z.literal('')).or(z.null()),
-  phone: z.string().optional(),
-  website: z.string().optional(),
-  company: z.string().optional(),
+  phone: z.string().optional().nullable(),
+  website: z.string().optional().nullable(),
+  company: z.string().optional().nullable(),
 })
 
 export const createClientSchema = clientSchema.omit({ clientName: true })
@@ -37,6 +37,10 @@ export const saleSchema = z.object({
   unitPriceHt: z.number().positive('Le prix unitaire doit être strictement positif'),
   unitLabel: z.string().optional(), // "heure" | "forfait" pour affichage PDF
   options: z.string().optional(), // JSON des options sélectionnées
+  recurring: z.boolean().optional(),
+  recurringType: z.enum(['mensuel', 'annuel', 'ponctuel']).optional().nullable(),
+  endDate: z.string().optional().nullable(),
+  status: z.enum(['paid', 'pending', 'cancelled']).default('paid').optional(),
   caHt: z.number().min(0, 'Le CA HT doit être positif'),
   tvaAmount: z.number().min(0, 'Le montant TVA doit être positif'),
   totalTtc: z.number().min(0, 'Le total TTC doit être positif'),
@@ -69,6 +73,7 @@ export const chargeSchema = z.object({
   amount: z.number().min(0, 'Le montant doit être positif').optional(),
   recurring: z.boolean().optional(),
   recurringType: z.enum(['mensuel', 'annuel', 'ponctuel']).optional(),
+  endDate: z.string().optional().nullable(),
   paymentMethod: z.string().optional(),
   notes: z.string().nullable().optional(),
   linkedService: z.string().nullable().optional(),
