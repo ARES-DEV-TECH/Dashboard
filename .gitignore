@@ -26,8 +26,7 @@
 # production
 /build
 
-# données projet (roadmap, audits, doc interne — ne pas versionner)
-ROADMAP.md
+# données projet (audits, doc interne — ne pas versionner)
 docs/*AUDIT*
 
 # misc
