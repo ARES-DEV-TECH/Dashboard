@@ -18,6 +18,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Client } from '@/lib/validations'
 import { generateCSV, downloadCSV } from '@/lib/csv'
 import { SWR_KEYS, fetchClients } from '@/lib/swr-fetchers'
+import { SWR_LIST_OPTIONS } from '@/lib/swr-config'
 import { getInitials } from '@/lib/utils'
 
 const CLIENTS_COLUMNS_STORAGE_KEY = 'clients-table-columns'
@@ -32,10 +33,7 @@ const DEFAULT_CLIENTS_COLUMN_VISIBILITY: Record<string, boolean> = {
 }
 
 export function ClientsContent() {
-  const { data: clients = [], error, isLoading, mutate } = useSWR<Client[]>(SWR_KEYS.clients, fetchClients, {
-    revalidateOnFocus: false,
-    dedupingInterval: 10000,
-  })
+  const { data: clients = [], error, isLoading, mutate } = useSWR<Client[]>(SWR_KEYS.clients, fetchClients, SWR_LIST_OPTIONS)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingClient, setEditingClient] = useState<Client | null>(null)
   const [formData, setFormData] = useState<Partial<Client>>({})

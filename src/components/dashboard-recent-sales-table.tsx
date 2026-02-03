@@ -36,10 +36,12 @@ import { electronFetch } from '@/lib/electron-api'
 import { toast } from 'sonner'
 import { mutate } from 'swr'
 import { SWR_KEYS } from '@/lib/swr-fetchers'
+import { formatTableDate } from '@/lib/utils'
 
 export type RecentSale = {
   id: string
   client: string
+  service: string
   amount: number
   status: string
   date: string
@@ -58,7 +60,7 @@ const updateStatus = async (invoiceNo: string, status: string) => {
       // Invalidate sales cache to refresh dashboard and table
       mutate(SWR_KEYS.sales)
       // Also invalidate dashboard data if needed
-      mutate((key) => typeof key === 'string' && key.startsWith('dashboard-'), undefined, { revalidate: true })
+      mutate((key) => typeof key === 'string' && key.startsWith('dashboard'), undefined, { revalidate: true })
     } else {
       toast.error('Erreur lors de la mise à jour')
     }
@@ -88,9 +90,14 @@ const columns: ColumnDef<RecentSale>[] = [
     cell: ({ row }) => <div>{row.getValue('client')}</div>,
   },
   {
+    accessorKey: 'service',
+    header: 'Service',
+    cell: ({ row }) => <div>{row.getValue('service') ?? '—'}</div>,
+  },
+  {
     accessorKey: 'date',
     header: 'Date',
-    cell: ({ row }) => <div>{row.getValue('date')}</div>,
+    cell: ({ row }) => <div>{formatTableDate(row.getValue('date') as string)}</div>,
   },
   {
     accessorKey: 'frequency',

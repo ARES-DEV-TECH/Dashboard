@@ -124,7 +124,9 @@ export function AnalyticsCharges({ data }: AnalyticsChargesProps) {
             {totals && (
               <div className="mt-4 text-center">
                 <p className="text-sm text-muted-foreground">Total des charges</p>
-                <p className="text-2xl font-bold text-red-600">{formatCurrency(totals.total)}</p>
+                <p className="text-2xl font-bold text-red-600">
+                  {formatCurrency(totals.totalHt ?? totals.totalTtc ?? 0)}
+                </p>
               </div>
             )}
           </CardContent>

@@ -31,9 +31,11 @@ export const GET = requireAuth(async (request: NextRequest, user: UserPayload) =
       const currentMonth = currentDate.getMonth() + 1
       switch (range) {
         case 'month': {
+          // UTC pour cohérence avec l’API evolution et les ventes stockées en date seule (minuit UTC)
           const targetMonth = month || currentMonth
-          startDate = new Date(year, targetMonth - 1, 1)
-          endDate = new Date(year, targetMonth, 0, 23, 59, 59)
+          const lastDay = new Date(Date.UTC(year, targetMonth, 0)).getUTCDate()
+          startDate = new Date(Date.UTC(year, targetMonth - 1, 1, 0, 0, 0, 0))
+          endDate = new Date(Date.UTC(year, targetMonth - 1, lastDay, 23, 59, 59, 999))
           break
         }
         case 'quarter': {

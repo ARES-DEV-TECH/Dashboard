@@ -26,11 +26,12 @@ export async function GET(request: NextRequest) {
     let monthOffset = 0 // Pour année : 0 ; pour trimestre : premier mois du trimestre (0,3,6,9)
 
     if (range === 'month' && monthParam) {
-      // Vue mensuelle : 1er au dernier jour du mois
-      startDate = new Date(year, monthParam - 1, 1)
-      endDate = new Date(year, monthParam, 0)
+      // Vue mensuelle : 1er au dernier jour du mois (UTC pour cohérence avec ventes stockées en date seule)
+      const lastDay = new Date(Date.UTC(year, monthParam, 0)).getUTCDate()
+      startDate = new Date(Date.UTC(year, monthParam - 1, 1, 0, 0, 0, 0))
+      endDate = new Date(Date.UTC(year, monthParam - 1, lastDay, 23, 59, 59, 999))
       granularity = 'day'
-      steps = endDate.getDate() // Nombre de jours dans le mois
+      steps = lastDay
     } else if (range === 'quarter' && monthParam) {
       // Vue trimestrielle : 3 mois (même période que les KPIs)
       const targetQuarter = Math.ceil(monthParam / 3)
@@ -142,9 +143,9 @@ export async function GET(request: NextRequest) {
           stepEnd.setHours(23, 59, 59, 999)
           label = stepStart.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })
         } else {
-          // Vue mensuelle : step = jour du mois
-          stepStart = new Date(year, (monthParam!) - 1, step)
-          stepEnd = new Date(year, (monthParam!) - 1, step, 23, 59, 59)
+          // Vue mensuelle : step = jour du mois (UTC pour matcher les ventes stockées en date seule)
+          stepStart = new Date(Date.UTC(year, (monthParam!) - 1, step, 0, 0, 0, 0))
+          stepEnd = new Date(Date.UTC(year, (monthParam!) - 1, step, 23, 59, 59, 999))
           label = stepStart.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })
         }
       } else {
@@ -237,8 +238,21 @@ export async function GET(request: NextRequest) {
           }
         } else {
           // Vente ponctuelle
-          if (saleDate >= stepStart && saleDate <= stepEnd) {
-            includeSale = true
+          if (granularity === 'day') {
+            // Vue jour : comparer en UTC pour cohérence (ventes "date seule" = minuit UTC)
+            const saleUtcDate = saleDate.getUTCDate()
+            const saleUtcMonth = saleDate.getUTCMonth()
+            const saleUtcYear = saleDate.getUTCFullYear()
+            const stepUtcDate = stepStart.getUTCDate()
+            const stepUtcMonth = stepStart.getUTCMonth()
+            const stepUtcYear = stepStart.getUTCFullYear()
+            if (saleUtcYear === stepUtcYear && saleUtcMonth === stepUtcMonth && saleUtcDate === stepUtcDate) {
+              includeSale = true
+            }
+          } else {
+            if (saleDate >= stepStart && saleDate <= stepEnd) {
+              includeSale = true
+            }
           }
         }
 

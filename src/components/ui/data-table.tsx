@@ -13,6 +13,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ChevronLeft, ChevronRight, Search, Download, Upload, Plus, Edit, Trash2, FileText, Receipt, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react'
+import { formatTableDate } from '@/lib/utils'
 import { useState, useMemo } from 'react'
 
 const ROW_HEIGHT = 48
@@ -47,6 +48,8 @@ interface DataTableProps<T extends Record<string, unknown>> {
   emptyMessage?: string
   /** Active la virtualisation pour les listes > ~200 lignes (scroll fluide). */
   virtualized?: boolean
+  /** Tri initial (ex. { field: 'saleDate', direction: 'desc' }). */
+  defaultSort?: { field: keyof T; direction: 'asc' | 'desc' }
   /** Contenu additionnel dans la barre d’outils (ex. sélecteur de colonnes). */
   toolbarExtra?: React.ReactNode
   className?: string
@@ -68,13 +71,14 @@ export function DataTable<T extends Record<string, unknown>>({
   onGenerateInvoice,
   emptyMessage,
   virtualized = false,
+  defaultSort,
   toolbarExtra,
   className
 }: DataTableProps<T>) {
   const [searchTerm, setSearchTerm] = useState("")
   const [currentPage, setCurrentPage] = useState(1)
-  const [sortField, setSortField] = useState<keyof T | null>(null)
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
+  const [sortField, setSortField] = useState<keyof T | null>(defaultSort?.field ?? null)
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>(defaultSort?.direction ?? 'asc')
   const scrollContainerRef = useRef<HTMLDivElement>(null)
 
   const filteredData = useMemo(() => {
@@ -171,11 +175,14 @@ export function DataTable<T extends Record<string, unknown>>({
       }).format(value)
     }
     
-    // Format date
+    // Format date (ex. 2026-avr-01)
     if (value instanceof Date) {
-      return value.toLocaleDateString('fr-FR')
+      return formatTableDate(value)
     }
-    
+    if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}/.test(value)) {
+      return formatTableDate(value)
+    }
+
     return String(value)
   }
 

@@ -33,6 +33,7 @@ export type DashboardData = {
   recentSales: {
     id: string
     client: string
+    service: string
     amount: number
     status: string
     date: string

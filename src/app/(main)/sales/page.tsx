@@ -1,6 +1,10 @@
-'use client'
+import dynamic from 'next/dynamic'
+import SalesLoading from './loading'
 
-import { SalesContent } from './sales-content'
+const SalesContent = dynamic(
+  () => import('./sales-content').then((m) => ({ default: m.SalesContent })),
+  { loading: () => <SalesLoading /> }
+)
 
 export default function SalesPage() {
   return (

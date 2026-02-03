@@ -14,6 +14,7 @@ import { safeErrorMessage } from '@/lib/utils'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Building2, Euro, FileText, Download, Trash2, Upload, Image } from 'lucide-react'
 import { SWR_KEYS, fetchSettings } from '@/lib/swr-fetchers'
+import { SWR_CACHE_LONG_OPTIONS } from '@/lib/swr-config'
 
 interface ParametresEntreprise {
   key: string
@@ -21,7 +22,7 @@ interface ParametresEntreprise {
 }
 
 export function SettingsContent() {
-  const { data, error, isLoading, mutate } = useSWR(SWR_KEYS.settings, fetchSettings)
+  const { data, error, isLoading, mutate } = useSWR(SWR_KEYS.settings, fetchSettings, SWR_CACHE_LONG_OPTIONS)
   const [editingParam, setEditingParam] = useState<string | null>(null)
   const [newValue, setNewValue] = useState('')
   const [uploading, setUploading] = useState(false)

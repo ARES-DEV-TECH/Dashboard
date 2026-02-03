@@ -10,11 +10,17 @@ export function DashboardClient({ data }: { data: DashboardData }) {
     <div className="@container/main flex flex-1 flex-col gap-6">
       <SectionCards kpis={data.kpis} />
       
-      <div className="px-4 lg:px-6">
+      <div
+        className="animate-fade-in-up px-4 opacity-0 lg:px-6"
+        style={{ animationDelay: '280ms' }}
+      >
         <ChartAreaInteractive data={data.evolution} />
       </div>
 
-      <div className="flex flex-1 flex-col gap-4 px-4 pb-8 lg:px-6">
+      <div
+        className="animate-fade-in-up flex flex-1 flex-col gap-4 px-4 pb-8 opacity-0 lg:px-6"
+        style={{ animationDelay: '340ms' }}
+      >
         <h3 className="font-semibold">Ventes récentes</h3>
         <DashboardRecentSalesTable data={data.recentSales} />
       </div>

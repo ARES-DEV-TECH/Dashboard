@@ -5,6 +5,7 @@ import { useMemo } from 'react'
 import { buildApiParams, calculatePreviousPeriod } from '@/lib/date-utils'
 import { fetchDashboard, fetchChargesBreakdown, fetchDashboardEvolution, fetchSettings as fetchSettingsRaw } from '@/lib/electron-api'
 import { SWR_KEYS, fetchSettings as fetchSettingsSWR } from '@/lib/swr-fetchers'
+import { SWR_CACHE_LONG_OPTIONS } from '@/lib/swr-config'
 import { calculateComparison } from '@/lib/comparison-utils'
 import type { DateRange } from '@/lib/date-utils'
 import type { DashboardData, EvolutionData, ChargesBreakdown, DashboardSWRPayload } from '@/lib/types'
@@ -129,35 +130,33 @@ export function useDashboardData(dateRange: DateRange) {
   const key = `dashboard::${params}::${previousParams}::${year}`
 
   // 1. Charger les settings avec leur propre cache (SWR_KEYS.settings)
-  const { data: settingsData } = useSWR(SWR_KEYS.settings, fetchSettingsSWR, {
-    revalidateOnFocus: false,
-    revalidateIfStale: false, // Ne pas revalider si déjà en cache (très stable)
-    dedupingInterval: 300000 // Cache 5 minutes
-  })
+  const { data: settingsData } = useSWR(SWR_KEYS.settings, fetchSettingsSWR, SWR_CACHE_LONG_OPTIONS)
 
-  // 2. Charger les données du dashboard
   const { data: rawPayload, error, isLoading, isValidating, mutate } = useSWR(key, rawDashboardFetcher, {
-    revalidateOnFocus: true,
-    revalidateOnReconnect: true,
-    dedupingInterval: 5000,
+    ...SWR_CACHE_LONG_OPTIONS,
     keepPreviousData: true,
   })
 
-  // 3. Combiner les données et calculer la comparaison
-  const payload = useMemo<DashboardSWRPayload | null>(() => {
-    if (!rawPayload || !settingsData) return null
+  // Valeurs par défaut pour afficher le dashboard sans attendre les settings (fluidité)
+  const DEFAULT_COMPANY_SETTINGS = { defaultTvaRate: 20, tauxUrssaf: 22 }
 
-    const settingsObj = (settingsData.parameters || []).reduce(
-      (acc: Record<string, unknown>, param: { key: string; value: string }) => {
-        if (param.key === 'defaultTvaRate' || param.key === 'tauxUrssaf') {
-          acc[param.key] = parseFloat(param.value)
-        } else {
-          acc[param.key] = param.value
-        }
-        return acc
-      },
-      {}
-    )
+  // 3. Combiner les données et calculer la comparaison (dès que rawPayload est prêt, settings optionnels)
+  const payload = useMemo<DashboardSWRPayload | null>(() => {
+    if (!rawPayload) return null
+
+    const settingsObj = settingsData
+      ? (settingsData.parameters || []).reduce(
+          (acc: Record<string, unknown>, param: { key: string; value: string }) => {
+            if (param.key === 'defaultTvaRate' || param.key === 'tauxUrssaf') {
+              acc[param.key] = parseFloat(param.value)
+            } else {
+              acc[param.key] = param.value
+            }
+            return acc
+          },
+          {}
+        )
+      : DEFAULT_COMPANY_SETTINGS
 
     // Finaliser le calcul de comparaison si on a les données précédentes
     let finalComparison = undefined
@@ -180,7 +179,7 @@ export function useDashboardData(dateRange: DateRange) {
   return {
     payload: payload ?? null,
     error,
-    isLoading: isLoading || !payload, // Loading tant que l'un des deux n'est pas prêt
+    isLoading: isLoading && !rawPayload, // Loading uniquement tant que les données dashboard ne sont pas là (plus de blocage settings)
     isValidating,
     mutate,
   }

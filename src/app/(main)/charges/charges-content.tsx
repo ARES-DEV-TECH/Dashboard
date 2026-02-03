@@ -12,10 +12,11 @@ import { Charge, Client } from '@/lib/validations'
 import { generateCSV, downloadCSV } from '@/lib/csv'
 import { electronFetch } from '@/lib/electron-api'
 import { toast } from 'sonner'
-import { safeErrorMessage } from '@/lib/utils'
+import { safeErrorMessage, formatTableDate } from '@/lib/utils'
 import { Skeleton } from '@/components/ui/skeleton'
 import { ChargeFormModal } from './components/ChargeFormModal'
 import { SWR_KEYS, fetchCharges, fetchArticles, fetchClients } from '@/lib/swr-fetchers'
+import { SWR_LIST_OPTIONS } from '@/lib/swr-config'
 
 const CHARGES_COLUMNS_STORAGE_KEY = 'charges-table-columns'
 const DEFAULT_CHARGES_COLUMN_VISIBILITY: Record<string, boolean> = {
@@ -30,9 +31,9 @@ const DEFAULT_CHARGES_COLUMN_VISIBILITY: Record<string, boolean> = {
 }
 
 export function ChargesContent() {
-  const { data: chargesData, error: chargesError, isLoading: chargesLoading, mutate: mutateCharges } = useSWR(SWR_KEYS.charges, fetchCharges, { revalidateOnFocus: false, dedupingInterval: 10000, keepPreviousData: true })
-  const { data: articles = [], isLoading: articlesLoading } = useSWR(SWR_KEYS.articles, fetchArticles, { revalidateOnFocus: false, dedupingInterval: 10000, keepPreviousData: true })
-  const { data: clients = [], isLoading: clientsLoading } = useSWR(SWR_KEYS.clients, fetchClients, { revalidateOnFocus: false, dedupingInterval: 10000, keepPreviousData: true })
+  const { data: chargesData, error: chargesError, isLoading: chargesLoading, mutate: mutateCharges } = useSWR(SWR_KEYS.charges, fetchCharges, SWR_LIST_OPTIONS)
+  const { data: articles = [], isLoading: articlesLoading } = useSWR(SWR_KEYS.articles, fetchArticles, SWR_LIST_OPTIONS)
+  const { data: clients = [], isLoading: clientsLoading } = useSWR(SWR_KEYS.clients, fetchClients, SWR_LIST_OPTIONS)
 
   const charges = chargesData?.charges ?? []
   const loading = chargesLoading || articlesLoading || clientsLoading
@@ -265,7 +266,7 @@ export function ChargesContent() {
         label: 'Date',
         sortable: true,
         sortLabel: 'numeric',
-        render: (value) => new Date(value as string).toLocaleDateString('fr-FR'),
+        render: (value) => formatTableDate(value as string),
       },
       {
         key: 'category',

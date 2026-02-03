@@ -20,6 +20,7 @@ import { electronFetch } from '@/lib/electron-api'
 import { toast } from 'sonner'
 import { Skeleton } from '@/components/ui/skeleton'
 import { SWR_KEYS, fetchArticles } from '@/lib/swr-fetchers'
+import { SWR_LIST_OPTIONS } from '@/lib/swr-config'
 
 const ARTICLES_COLUMNS_STORAGE_KEY = 'articles-table-columns'
 const DEFAULT_ARTICLES_COLUMN_VISIBILITY: Record<string, boolean> = {
@@ -40,11 +41,7 @@ interface ServiceOption {
 }
 
 export function ArticlesContent() {
-  const { data: articles = [], error, isLoading, mutate } = useSWR<Article[]>(SWR_KEYS.articles, fetchArticles, {
-    revalidateOnFocus: false,
-    dedupingInterval: 10000,
-    keepPreviousData: true,
-  })
+  const { data: articles = [], error, isLoading, mutate } = useSWR<Article[]>(SWR_KEYS.articles, fetchArticles, SWR_LIST_OPTIONS)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingArticle, setEditingArticle] = useState<Article | null>(null)
   const [formData, setFormData] = useState<Partial<Article>>({})

@@ -13,8 +13,9 @@ import { generateCSV, downloadCSV } from '@/lib/csv'
 import { getDefaultTvaRate } from '@/lib/settings'
 import { electronFetch } from '@/lib/electron-api'
 import { toast } from 'sonner'
-import { safeErrorMessage } from '@/lib/utils'
+import { safeErrorMessage, formatTableDate } from '@/lib/utils'
 import { SWR_KEYS, fetchClients, fetchArticles, fetchSalesList, fetchCharges } from '@/lib/swr-fetchers'
+import { SWR_LIST_OPTIONS } from '@/lib/swr-config'
 import { Plus, Columns3 } from 'lucide-react'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -27,8 +28,8 @@ type SaleRow = {
   clientCompany: string
   clientLastName: string
   clientFirstName: string
-  totalTtc: number
   serviceName: string
+  totalTtc: number
   quantity: number
   unitPriceHt: number
   caHt: number
@@ -38,6 +39,7 @@ type SaleRow = {
   recurringType?: string | null
   endDate?: string | null
   year?: number
+  status?: string
   [key: string]: unknown
 }
 
@@ -48,17 +50,19 @@ const DEFAULT_COLUMN_VISIBILITY: Record<string, boolean> = {
   clientCompany: true,
   clientLastName: true,
   clientFirstName: true,
+  serviceName: true,
   saleDate: true,
   recurringType: true,
+  status: true,
   totalTtc: true,
 }
 
 export function SalesContent() {
   const { mutate: globalMutate } = useSWRConfig()
-  const { data: salesListData, isLoading: salesLoading, mutate: mutateSalesList } = useSWR(SWR_KEYS.salesList, fetchSalesList, { revalidateOnFocus: false, dedupingInterval: 10000, keepPreviousData: true })
-  const { data: clients = [], isLoading: clientsLoading } = useSWR(SWR_KEYS.clients, fetchClients, { revalidateOnFocus: false, dedupingInterval: 10000, keepPreviousData: true })
-  const { data: articles = [], isLoading: articlesLoading } = useSWR(SWR_KEYS.articles, fetchArticles, { revalidateOnFocus: false, dedupingInterval: 10000, keepPreviousData: true })
-  const { data: chargesData, isLoading: chargesLoading, mutate: mutateCharges } = useSWR(SWR_KEYS.charges, fetchCharges, { revalidateOnFocus: false, dedupingInterval: 10000, keepPreviousData: true })
+  const { data: salesListData, isLoading: salesLoading, mutate: mutateSalesList } = useSWR(SWR_KEYS.salesList, fetchSalesList, SWR_LIST_OPTIONS)
+  const { data: clients = [], isLoading: clientsLoading } = useSWR(SWR_KEYS.clients, fetchClients, SWR_LIST_OPTIONS)
+  const { data: articles = [], isLoading: articlesLoading } = useSWR(SWR_KEYS.articles, fetchArticles, SWR_LIST_OPTIONS)
+  const { data: chargesData, isLoading: chargesLoading, mutate: mutateCharges } = useSWR(SWR_KEYS.charges, fetchCharges, SWR_LIST_OPTIONS)
 
   const rawSales = salesListData?.sales ?? []
   const charges = chargesData?.charges ?? []
@@ -391,7 +395,11 @@ export function SalesContent() {
         } else {
           await mutateSalesList()
         }
-        await Promise.all([mutateCharges(), globalMutate(SWR_KEYS.sales)])
+        await Promise.all([
+          mutateCharges(),
+          globalMutate(SWR_KEYS.sales),
+          globalMutate((k) => typeof k === 'string' && k.startsWith('dashboard'), undefined, { revalidate: true })
+        ])
         setIsDialogOpen(false)
         setEditingSale(null)
         toast.success('Ventes', { description: editingSale ? 'Vente mise à jour.' : 'Vente enregistrée.' })
@@ -421,7 +429,11 @@ export function SalesContent() {
       const url = `/api/sales/${encodeURIComponent(invoiceNo)}`
       const response = await electronFetch(url, { method: 'DELETE' })
       if (response.ok) {
-        await Promise.all([mutateSalesList(), globalMutate(SWR_KEYS.sales)])
+        await Promise.all([
+          mutateSalesList(),
+          globalMutate(SWR_KEYS.sales),
+          globalMutate((k) => typeof k === 'string' && k.startsWith('dashboard'), undefined, { revalidate: true })
+        ])
         toast.success('Ventes', { description: 'Vente supprimée.' })
       } else {
         mutateSalesList({ sales: previousSales, pagination: salesListData?.pagination }, { revalidate: false })
@@ -492,16 +504,17 @@ export function SalesContent() {
       { key: 'clientCompany', label: 'Entreprise', sortable: true, sortLabel: 'alpha' },
       { key: 'clientLastName', label: 'Nom', sortable: true, sortLabel: 'alpha' },
       { key: 'clientFirstName', label: 'Prénom', sortable: true, sortLabel: 'alpha' },
+      { key: 'serviceName', label: 'Service', sortable: true, sortLabel: 'alpha', render: (v: unknown) => (v ? String(v) : '—') },
       {
         key: 'saleDate',
         label: 'Date',
         sortable: true,
         sortLabel: 'numeric',
-        render: (val: unknown) => (val ? new Date(String(val)).toLocaleDateString('fr-FR') : ''),
+        render: (val: unknown) => (val ? formatTableDate(String(val)) : ''),
       },
       {
         key: 'recurringType',
-        label: 'Ponctualité',
+        label: 'Fréquence',
         sortable: true,
         sortLabel: 'alpha',
         render: (val: unknown) => {
@@ -509,6 +522,19 @@ export function SalesContent() {
           if (v === 'mensuel') return 'Mensuel'
           if (v === 'annuel') return 'Annuel'
           return 'Ponctuel'
+        },
+      },
+      {
+        key: 'status',
+        label: 'Statut',
+        sortable: true,
+        sortLabel: 'alpha',
+        render: (val: unknown) => {
+          const s = String(val ?? 'paid').toLowerCase()
+          if (s === 'paid') return 'Payée'
+          if (s === 'pending') return 'En attente'
+          if (s === 'cancelled') return 'Annulée'
+          return s
         },
       },
       {
@@ -594,6 +620,7 @@ export function SalesContent() {
         searchPlaceholder="Rechercher (facture, client, service…)"
         pagination
         pageSize={15}
+        defaultSort={{ field: 'saleDate', direction: 'desc' }}
         toolbarExtra={columnsPopover}
         onExport={handleExportCSV}
         onAdd={handleAdd}
@@ -863,7 +890,7 @@ export function SalesContent() {
                           </div>
                           <div className="text-xs text-muted-foreground mt-0.5">
                             {charge.category && `${charge.category} • `}
-                            {new Date(charge.expenseDate).toLocaleDateString('fr-FR')}
+                            {formatTableDate(charge.expenseDate)}
                           </div>
                         </Label>
                       </div>

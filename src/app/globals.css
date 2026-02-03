@@ -173,6 +173,21 @@
   background: rgba(255, 255, 255, 0.35);
 }
 
+/* Apparition en douceur (cartes dashboard, listes) — stagger via animation-delay */
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.animate-fade-in-up {
+  animation: fade-in-up 0.35s ease-out forwards;
+}
+
 /* Cartes type glass (dashboard) */
 .liquid-glass-card {
   background: rgba(255, 255, 255, 0.08);
@@ -181,9 +196,12 @@
   border: 1px solid rgba(255, 255, 255, 0.15);
   border-radius: 1rem;
   box-shadow: 0 4px 24px rgba(0, 0, 0, 0.12);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
 }
 .liquid-glass-card:hover {
   background: rgba(255, 255, 255, 0.1);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.18);
 }
 
 /* Barre de progression navigation (perçu de fluidité) */
@@ -191,6 +209,60 @@
   0% { transform: scaleX(0); transform-origin: left; }
   50% { transform: scaleX(0.7); transform-origin: left; }
   100% { transform: scaleX(1); transform-origin: left; }
+}
+
+/* Entrée en fondu du graphique en aires (fallback si l’animation Recharts ne se déclenche pas) */
+@keyframes chart-area-enter {
+  from { opacity: 0.92; }
+  to { opacity: 1; }
+}
+.chart-area-enter {
+  animation: chart-area-enter 0.5s ease-out forwards;
+}
+
+@keyframes chart-area-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.96; }
+}
+.chart-area-pulse {
+  animation: chart-area-pulse 0.4s ease-out;
+}
+
+/* Révélation gauche → droite du graphique en aires — démarrage déclenché en JS après ~2,2 s */
+@keyframes chart-area-reveal-right {
+  from { clip-path: inset(0 100% 0 0); }
+  to { clip-path: inset(0 0 0 0); }
+}
+.chart-area-reveal {
+  overflow: hidden;
+  clip-path: inset(0 100% 0 0);
+}
+.chart-area-reveal.chart-area-reveal-animate {
+  animation: chart-area-reveal-right 4.5s ease-out 0s forwards;
+}
+
+/* Graphique évolution : dessin des courbes de gauche à droite (stroke = trait qui se trace) */
+.chart-evolution-draw .recharts-area-curve,
+.chart-evolution-draw .recharts-line-curve,
+.chart-evolution-draw .recharts-curve,
+.chart-evolution-draw path.recharts-area-curve,
+.chart-evolution-draw path.recharts-line-curve,
+.chart-evolution-draw path.recharts-curve {
+  stroke-dasharray: 5000 !important;
+  stroke-dashoffset: 5000 !important;
+  animation: chart-draw-path 1.8s ease-in-out 0.15s forwards;
+}
+/* Remplissage des aires qui se révèle de gauche à droite */
+.chart-evolution-draw .recharts-area-area,
+.chart-evolution-draw path.recharts-area-area {
+  clip-path: inset(0 100% 0 0);
+  animation: chart-reveal-fill 1.8s ease-in-out 0.15s forwards;
+}
+@keyframes chart-draw-path {
+  to { stroke-dashoffset: 0 !important; }
+}
+@keyframes chart-reveal-fill {
+  to { clip-path: inset(0 0 0 0); }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -203,4 +275,26 @@
     animation: none !important;
   }
   html { scroll-behavior: auto; }
+  .chart-evolution-draw .recharts-area-curve,
+  .chart-evolution-draw .recharts-line-curve,
+  .chart-evolution-draw .recharts-curve,
+  .chart-evolution-draw path.recharts-area-curve,
+  .chart-evolution-draw path.recharts-line-curve,
+  .chart-evolution-draw path.recharts-curve {
+    stroke-dashoffset: 0 !important;
+  }
+  .chart-evolution-draw .recharts-area-area,
+  .chart-evolution-draw path.recharts-area-area {
+    clip-path: none;
+  }
+  .chart-area-enter,
+  .chart-area-pulse {
+    animation: none;
+    opacity: 1;
+  }
+  .chart-area-reveal,
+  .chart-area-reveal.chart-area-reveal-animate {
+    animation: none;
+    clip-path: none;
+  }
 }

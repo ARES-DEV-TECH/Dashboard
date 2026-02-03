@@ -44,8 +44,6 @@ export interface ComparisonData {
 
 /** Seuil pour considérer une tendance (évite "stable" pour des écarts négligeables) */
 const TREND_THRESHOLD_PCT = 1
-/** Plafond d'affichage pour éviter des % extrêmes quand la période précédente est très faible */
-const DISPLAY_CAP_PCT = 300
 
 export function calculateTrendData(
   current: number,
@@ -54,21 +52,28 @@ export function calculateTrendData(
   const value = current - previous
   let percentage: number
   if (previous !== 0 && Number.isFinite(previous)) {
-    percentage = (value / previous) * 100
+    // Quand la période précédente est négative, (value / previous) inverserait le sens
+    // (ex. -60 → 1390 donne -2416% alors que c'est une forte hausse). On utilise
+    // |previous| pour le dénominateur afin que le signe du % reflète la variation.
+    const denom = previous < 0 ? Math.abs(previous) : previous
+    percentage = (value / denom) * 100
   } else {
-    // Période précédente nulle : on donne une tendance directionnelle sans infinie
+    // Période précédente nulle : tendance directionnelle sans infinie
     percentage = value > 0 ? 100 : value < 0 ? -100 : 0
   }
-  const cappedPercentage = Math.max(-DISPLAY_CAP_PCT, Math.min(DISPLAY_CAP_PCT, percentage))
+  const roundedPercentage = Math.round(percentage * 10) / 10
 
+  // La tendance suit le sens de la variation (value), pas le % brut
   let trend: 'up' | 'down' | 'stable' = 'stable'
-  if (Math.abs(percentage) > TREND_THRESHOLD_PCT) {
+  if (Math.abs(value) > 0.01) {
+    trend = value > 0 ? 'up' : 'down'
+  } else if (Math.abs(percentage) > TREND_THRESHOLD_PCT) {
     trend = percentage > 0 ? 'up' : 'down'
   }
 
   return {
     value,
-    percentage: cappedPercentage,
+    percentage: roundedPercentage,
     trend
   }
 }

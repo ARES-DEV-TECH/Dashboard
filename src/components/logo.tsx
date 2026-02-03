@@ -22,7 +22,7 @@ export function Logo({ size = 36, square = false, className = '' }: LogoProps) {
   const width = square ? size : Math.round(size * LOGO_ASPECT_RATIO)
   return (
     <span
-      className={`relative block shrink-0 overflow-hidden ${className}`}
+      className={`relative block shrink-0 overflow-hidden [animation:none] ${className}`}
       style={{ width, height }}
     >
       <Image

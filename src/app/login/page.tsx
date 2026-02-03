@@ -42,6 +42,11 @@ function LoginContent() {
     }
   }, [authLoading, user, router, mutate])
 
+  // Prefetch dashboard pour que le JS soit prêt à la redirection post-login
+  useEffect(() => {
+    router.prefetch('/dashboard')
+  }, [router])
+
   useEffect(() => {
     const err = searchParams.get('error')
     const verified = searchParams.get('verified')

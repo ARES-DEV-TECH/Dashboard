@@ -1,18 +1,25 @@
 'use client'
 
+import dynamic from 'next/dynamic'
 import { useMemo, useState } from 'react'
 import { useDashboardData } from './use-dashboard-data'
 import { calculatePresetDates, type DateRange } from '@/lib/date-utils'
-import { DashboardPageClient, type DashboardData } from '@/components/dashboard-page-client'
+import type { DashboardData } from '@/components/dashboard-page-client'
 import { SWR_KEYS, fetchSales } from '@/lib/swr-fetchers'
+import { SWR_LIST_OPTIONS } from '@/lib/swr-config'
 import useSWR from 'swr'
 import { PresetHeader } from '@/components/preset-header'
 import DashboardLoading from './loading'
 
+const DashboardPageClient = dynamic(
+  () => import('@/components/dashboard-page-client').then((m) => ({ default: m.DashboardPageClient })),
+  { loading: () => <DashboardLoading />, ssr: false }
+)
+
 function mapToPresetDashboardData(
   payload: Awaited<ReturnType<typeof import('./use-dashboard-data').dashboardFetcher>>,
   comparisonData: { variations?: Record<string, { percentage?: number; trend?: 'up' | 'down' | 'neutral' | 'stable' }> } | null,
-  recentSales: Array<{ invoiceNo: string; clientName: string; totalTtc: number; saleDate: string; status?: unknown; recurring?: boolean; recurringType?: string | null }>
+  recentSales: Array<{ invoiceNo: string; clientName: string; serviceName?: string; totalTtc: number; saleDate: string; status?: unknown; recurring?: boolean; recurringType?: string | null }>
 ): DashboardData | null {
   if (!payload?.data?.kpis) return null
   const d = payload.data
@@ -76,13 +83,14 @@ function mapToPresetDashboardData(
     recentSales: recentSales.slice(0, 10).map((s) => {
       const statusStr = String(s.status ?? 'paid')
       return {
-      id: s.invoiceNo,
-      client: s.clientName,
-      amount: s.totalTtc,
-      status: statusStr === 'paid' ? 'Payée' : statusStr === 'pending' ? 'En attente' : statusStr === 'cancelled' ? 'Annulée' : statusStr,
-      date: s.saleDate?.split('T')[0] ?? '',
-      frequency: s.recurring ? (s.recurringType === 'mensuel' ? 'Mensuel' : s.recurringType === 'annuel' ? 'Annuel' : 'Ponctuel') : 'Ponctuel',
-    }
+        id: s.invoiceNo,
+        client: s.clientName,
+        service: s.serviceName ?? '—',
+        amount: s.totalTtc,
+        status: statusStr === 'paid' ? 'Payée' : statusStr === 'pending' ? 'En attente' : statusStr === 'cancelled' ? 'Annulée' : statusStr,
+        date: s.saleDate?.split('T')[0] ?? '',
+        frequency: s.recurring ? (s.recurringType === 'mensuel' ? 'Mensuel' : s.recurringType === 'annuel' ? 'Annuel' : 'Ponctuel') : 'Ponctuel',
+      }
     }),
     servicesData: {
       serviceDistribution: d.serviceDistribution ?? [],
@@ -101,7 +109,7 @@ function mapToPresetDashboardData(
 export default function DashboardPage() {
   const [dateRange, setDateRange] = useState<DateRange>(() => calculatePresetDates('thisMonth'))
   const { payload, error, isLoading } = useDashboardData(dateRange)
-  const { data: salesData } = useSWR(SWR_KEYS.sales, fetchSales, { revalidateOnFocus: false, dedupingInterval: 10000, keepPreviousData: true })
+  const { data: salesData } = useSWR(SWR_KEYS.sales, fetchSales, SWR_LIST_OPTIONS)
 
   const sales = salesData?.sales ?? []
   const recentSales = useMemo(
@@ -111,6 +119,7 @@ export default function DashboardPage() {
         .map((s) => ({
           invoiceNo: s.invoiceNo,
           clientName: s.clientName,
+          serviceName: s.serviceName ?? '',
           totalTtc: s.totalTtc,
           saleDate: typeof s.saleDate === 'string' ? s.saleDate : new Date(s.saleDate).toISOString(),
           status: s.status || 'paid',

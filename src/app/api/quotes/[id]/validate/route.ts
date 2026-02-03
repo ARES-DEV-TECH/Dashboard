@@ -76,7 +76,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         }
       }
 
-      const tvaAmount = itemTotal * (quote.totalTva / quote.totalHt)
+      const ratioTva = quote.totalHt && Number.isFinite(quote.totalHt)
+        ? quote.totalTva / quote.totalHt
+        : 0
+      const tvaAmount = itemTotal * ratioTva
       const totalTtc = itemTotal + tvaAmount
 
       // Générer le numéro de facture pour la vente
