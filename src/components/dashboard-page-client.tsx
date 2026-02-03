@@ -33,6 +33,7 @@ export type DashboardData = {
   recentSales: {
     id: string
     client: string
+    service: string
     amount: number
     status: string
     date: string
@@ -59,6 +60,6 @@ const DashboardClient = dynamic(
   { ssr: false }
 )
 
-export function DashboardPageClient({ data }: { data: DashboardData }) {
-  return <DashboardClient data={data} />
+export function DashboardPageClient({ data, isRefreshing }: { data: DashboardData; isRefreshing?: boolean }) {
+  return <DashboardClient data={data} isRefreshing={isRefreshing} />
 }

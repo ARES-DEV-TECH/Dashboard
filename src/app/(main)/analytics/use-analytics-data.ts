@@ -5,6 +5,7 @@ import { useMemo } from 'react'
 import { buildApiParams } from '@/lib/date-utils'
 import { fetchDashboard, fetchChargesBreakdown, fetchDashboardEvolution, fetchSettings as fetchSettingsRaw } from '@/lib/electron-api'
 import { SWR_KEYS, fetchSettings as fetchSettingsSWR } from '@/lib/swr-fetchers'
+import { SWR_CACHE_LONG_OPTIONS, SWR_CACHE_LONG_WITH_REFOCUS } from '@/lib/swr-config'
 import type { DateRange } from '@/lib/date-utils'
 import type { DashboardSWRPayload, AnalyticsPayload } from '@/lib/types'
 
@@ -64,16 +65,10 @@ export function useAnalyticsData(dateRange: DateRange) {
   const key = `analytics-${params}::${year}`
 
   // 1. Settings (Taux TVA, URSSAF)
-  const { data: settingsData } = useSWR(SWR_KEYS.settings, fetchSettingsSWR, {
-    revalidateOnFocus: false,
-    revalidateIfStale: false,
-    dedupingInterval: 300000
-  })
+  const { data: settingsData } = useSWR(SWR_KEYS.settings, fetchSettingsSWR, SWR_CACHE_LONG_OPTIONS)
 
-  // 2. Données analytiques
   const { data: rawPayload, error, isLoading, isValidating, mutate } = useSWR(key, rawAnalyticsFetcher, {
-    revalidateOnFocus: true,
-    revalidateOnReconnect: true,
+    ...SWR_CACHE_LONG_WITH_REFOCUS,
     keepPreviousData: true,
   })
 
@@ -123,6 +118,10 @@ export function useAnalyticsData(dateRange: DateRange) {
             monthlyServiceEvolution: rawPayload.evolutionData?.monthlyServiceEvolution,
             serviceAnalysis: rawPayload.evolutionData?.serviceAnalysis,
             clientAnalysis: rawPayload.evolutionData?.clientAnalysis,
+            revenueDistribution: {
+                recurring: rawPayload.evolutionData?.globalKpis?.recurringShare || 0,
+                oneTime: rawPayload.evolutionData?.globalKpis?.oneTimeShare || 0
+            }
         },
         chargesData: {
             totals: rawPayload.chargesData?.totals,

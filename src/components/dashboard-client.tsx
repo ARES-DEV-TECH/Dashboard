@@ -5,16 +5,24 @@ import { DashboardRecentSalesTable } from '@/components/dashboard-recent-sales-t
 import { SectionCards } from '@/components/section-cards'
 import type { DashboardData } from '@/components/dashboard-page-client'
 
-export function DashboardClient({ data }: { data: DashboardData }) {
+export function DashboardClient({ data, isRefreshing }: { data: DashboardData; isRefreshing?: boolean }) {
   return (
-    <div className="@container/main flex flex-1 flex-col gap-6">
+    <div
+      className={`@container/main flex flex-1 flex-col gap-6 transition-opacity duration-300 ${
+        isRefreshing ? 'opacity-70' : 'opacity-100'
+      }`}
+    >
       <SectionCards kpis={data.kpis} />
       
-      <div className="px-4 lg:px-6">
+      <div
+        className="px-4 lg:px-6"
+      >
         <ChartAreaInteractive data={data.evolution} />
       </div>
 
-      <div className="flex flex-1 flex-col gap-4 px-4 pb-8 lg:px-6">
+      <div
+        className="flex flex-1 flex-col gap-4 px-4 pb-8 lg:px-6"
+      >
         <h3 className="font-semibold">Ventes récentes</h3>
         <DashboardRecentSalesTable data={data.recentSales} />
       </div>

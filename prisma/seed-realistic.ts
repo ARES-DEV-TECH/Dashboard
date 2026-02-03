@@ -9,19 +9,29 @@ const prisma = new PrismaClient()
  * Lie les paramètres au premier utilisateur existant, ou crée un utilisateur de seed si aucun.
  */
 async function main() {
-  let user = await prisma.user.findFirst()
+  let user = await prisma.user.findFirst({ where: { email: 'seed@example.com' } })
   if (!user) {
-    console.log('👤 Aucun utilisateur trouvé, création d’un utilisateur de seed...')
-    const hashedPassword = await bcrypt.hash('seed-password', 12)
+    console.log('👤 Aucun utilisateur seed trouvé, création...')
+    const hashedPassword = await bcrypt.hash('password123', 12)
     user = await prisma.user.create({
       data: {
         email: 'seed@example.com',
         password: hashedPassword,
         firstName: 'Seed',
         lastName: 'User',
+        emailVerifiedAt: new Date(),
       },
     })
-    console.log('✅ Utilisateur seed créé (email: seed@example.com).')
+    console.log('✅ Utilisateur seed créé.')
+  } else {
+    // S'assurer qu'il est vérifié
+    if (!user.emailVerifiedAt) {
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { emailVerifiedAt: new Date() }
+      })
+      console.log('✅ Utilisateur seed marqué comme vérifié.')
+    }
   }
 
   const count = await prisma.parametresEntreprise.count({ where: { userId: user.id } })

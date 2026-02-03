@@ -84,7 +84,11 @@ export interface EvolutionData {
     result: number
   }>
   monthlyServiceEvolution?: Array<{ month: number; monthName: string; [k: string]: string | number }>
-  globalKpis: { linkedSalesCount: number }
+  globalKpis: { 
+    linkedSalesCount: number
+    recurringShare?: number
+    oneTimeShare?: number
+  }
   serviceAnalysis: Array<{
     serviceName: string
     unitPrice: number
@@ -135,6 +139,7 @@ export interface AnalyticsPayload {
     monthlyServiceEvolution?: unknown
     serviceAnalysis?: unknown[]
     clientAnalysis?: unknown[]
+    revenueDistribution?: { recurring: number; oneTime: number }
   }
   chargesData: {
     totals?: unknown

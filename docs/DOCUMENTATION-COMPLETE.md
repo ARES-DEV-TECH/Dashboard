@@ -439,19 +439,15 @@ Liens avec `prefetch` et `onMouseEnter` / `onFocus` → `router.prefetch(href)` 
 - **Props principales** : `data`, `columns` (key, label, render?, sortable?), `searchPlaceholder`, `emptyMessage`, `onAdd`, `onEdit`, `onDelete`, `onExport`, `virtualized`, `pageSize`.
 - **Comportement** : recherche en temps réel sur toutes les colonnes ; tri au clic en-tête ; pagination avec fenêtre de pages ; si `virtualized` et `data.length > 200`, scroll virtuel (@tanstack/react-virtual). Message vide + bouton « Créer » si `onAdd` et liste vide.
 
-### 13.2 OptimizedKpiCard
-
-- Carte KPI : icône, titre, valeur, ligne « change » (texte + couleur positive/negative/neutral). Utilisée dans DashboardKPIs.
-
-### 13.3 ChargeFormModal
+### 13.2 ChargeFormModal
 
 - Dialog formulaire charge : tous les champs (date, catégorie, fournisseur, description, montant, récurrent, type, moyen de paiement, notes, service lié, client lié). Appel `onSubmit` avec préparation des données (dates, linkedService/linkedClient à null si "none").
 
-### 13.4 Logo
+### 13.3 Logo
 
 - Affichage du logo (image ou composant) utilisé en en-tête / login / register.
 
-### 13.5 Auth Provider
+### 13.4 Auth Provider
 
 - Contexte : `user`, `loading`, `login`, `logout`. Vérification session via `/api/auth/me`. Utilisé par les pages protégées et la navigation.
 

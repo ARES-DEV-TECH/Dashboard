@@ -1,4 +1,10 @@
-import { ArticlesContent } from './articles-content'
+import dynamic from 'next/dynamic'
+import ArticlesLoading from './loading'
+
+const ArticlesContent = dynamic(
+  () => import('./articles-content').then((m) => ({ default: m.ArticlesContent })),
+  { loading: () => <ArticlesLoading /> }
+)
 
 export default function ArticlesPage() {
   return (

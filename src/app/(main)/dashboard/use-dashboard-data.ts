@@ -5,6 +5,7 @@ import { useMemo } from 'react'
 import { buildApiParams, calculatePreviousPeriod } from '@/lib/date-utils'
 import { fetchDashboard, fetchChargesBreakdown, fetchDashboardEvolution, fetchSettings as fetchSettingsRaw } from '@/lib/electron-api'
 import { SWR_KEYS, fetchSettings as fetchSettingsSWR } from '@/lib/swr-fetchers'
+import { SWR_CACHE_LONG_OPTIONS, SWR_CACHE_LONG_WITH_REFOCUS } from '@/lib/swr-config'
 import { calculateComparison } from '@/lib/comparison-utils'
 import type { DateRange } from '@/lib/date-utils'
 import type { DashboardData, EvolutionData, ChargesBreakdown, DashboardSWRPayload } from '@/lib/types'
@@ -129,17 +130,10 @@ export function useDashboardData(dateRange: DateRange) {
   const key = `dashboard::${params}::${previousParams}::${year}`
 
   // 1. Charger les settings avec leur propre cache (SWR_KEYS.settings)
-  const { data: settingsData } = useSWR(SWR_KEYS.settings, fetchSettingsSWR, {
-    revalidateOnFocus: false,
-    revalidateIfStale: false, // Ne pas revalider si déjà en cache (très stable)
-    dedupingInterval: 300000 // Cache 5 minutes
-  })
+  const { data: settingsData } = useSWR(SWR_KEYS.settings, fetchSettingsSWR, SWR_CACHE_LONG_OPTIONS)
 
-  // 2. Charger les données du dashboard
   const { data: rawPayload, error, isLoading, isValidating, mutate } = useSWR(key, rawDashboardFetcher, {
-    revalidateOnFocus: true,
-    revalidateOnReconnect: true,
-    dedupingInterval: 5000,
+    ...SWR_CACHE_LONG_WITH_REFOCUS,
     keepPreviousData: true,
   })
 

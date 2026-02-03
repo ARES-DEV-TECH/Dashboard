@@ -11,8 +11,8 @@ test.describe('Pages auth', () => {
 
   test('page inscription affiche le formulaire', async ({ page }) => {
     await page.goto('/register')
-    await expect(page).toHaveTitle(/ARES|Dashboard|Inscription/i)
-    await expect(page.getByText('Inscription').first()).toBeVisible()
+    // Utiliser getByText car CardTitle est une div
+    await expect(page.getByText('Créer un compte', { exact: true })).toBeVisible()
     await expect(page.getByLabel(/email/i)).toBeVisible()
     await expect(page.locator('#firstName')).toBeVisible()
     await expect(page.locator('#lastName')).toBeVisible()

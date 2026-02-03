@@ -35,6 +35,10 @@
 }
 
 :root {
+  --duration-instant: 100ms;
+  --duration-fast: 150ms;
+  --duration-normal: 250ms;
+  --duration-slow: 350ms;
   --radius: 0.75rem;
   --background: #0f172a;
   --foreground: #f1f5f9;
@@ -117,7 +121,7 @@
   color: var(--primary-foreground);
   border-radius: var(--radius);
   font-weight: 600;
-  transition: top 0.2s ease;
+  transition: top var(--duration-fast) ease;
 }
 .skip-link:focus {
   top: 0.5rem;
@@ -136,7 +140,7 @@
   overflow: hidden;
 }
 .sidebar-content .sidebar-nav-item {
-  transition: background-color 0.15s ease, color 0.15s ease;
+  transition: background-color var(--duration-instant) ease, color var(--duration-instant) ease;
 }
 .sidebar-content .sidebar-nav-item-active,
 .sidebar-content [data-active="true"] {
@@ -173,6 +177,42 @@
   background: rgba(255, 255, 255, 0.35);
 }
 
+/* Apparition en douceur (cartes dashboard, listes) — stagger via animation-delay */
+
+/* Transition loading → contenu (crossfade) — durées très courtes */
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes fade-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+.animate-fade-in {
+  animation: fade-in 0.1s ease-out forwards;
+}
+.animate-fade-out {
+  animation: fade-out 0.1s ease-out forwards;
+}
+
+/* Skeleton : effet shimmer (gradient animé) */
+@keyframes skeleton-shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--muted) 0%,
+    color-mix(in srgb, var(--muted) 60%, var(--foreground)) 50%,
+    var(--muted) 100%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.5s ease-in-out infinite;
+}
+
+/* Lignes DataTable : apparition en stagger (non virtualisé) */
+
 /* Cartes type glass (dashboard) */
 .liquid-glass-card {
   background: rgba(255, 255, 255, 0.08);
@@ -181,9 +221,12 @@
   border: 1px solid rgba(255, 255, 255, 0.15);
   border-radius: 1rem;
   box-shadow: 0 4px 24px rgba(0, 0, 0, 0.12);
+  transition: transform var(--duration-fast) ease, box-shadow var(--duration-fast) ease, background-color var(--duration-fast) ease;
 }
 .liquid-glass-card:hover {
   background: rgba(255, 255, 255, 0.1);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.18);
 }
 
 /* Barre de progression navigation (perçu de fluidité) */
@@ -193,14 +236,75 @@
   100% { transform: scaleX(1); transform-origin: left; }
 }
 
+/* Graphique évolution : dessin des courbes de gauche à droite (stroke = trait qui se trace) */
+.chart-evolution-draw .recharts-area-curve,
+.chart-evolution-draw .recharts-line-curve,
+.chart-evolution-draw .recharts-curve,
+.chart-evolution-draw path.recharts-area-curve,
+.chart-evolution-draw path.recharts-line-curve,
+.chart-evolution-draw path.recharts-curve {
+  stroke-dasharray: 5000 !important;
+  stroke-dashoffset: 5000 !important;
+  will-change: stroke-dashoffset;
+  animation: chart-draw-path 1s ease-in-out 0.1s forwards;
+}
+/* Remplissage des aires : Fondu d'opacité (beaucoup plus performant que clip-path) */
+.chart-evolution-draw .recharts-area-area,
+.chart-evolution-draw path.recharts-area-area {
+  opacity: 0;
+  will-change: opacity;
+  animation: chart-fade-fill 1s ease-in-out 0.1s forwards;
+  clip-path: none; /* Désactivation du masque lourd */
+}
+
+@keyframes chart-fade-fill {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes chart-draw-path {
+  to { stroke-dashoffset: 0 !important; }
+}
+@keyframes chart-reveal-fill {
+  to { clip-path: inset(0 0 0 0); }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
   }
-  /* Empêcher l'accélération extrême des boucles infinies (comme animate-pulse) qui crée un effet stroboscopique */
-  .animate-pulse, .animate-spin {
+  /* Empêcher l'accélération extrême des boucles infinies qui crée un effet stroboscopique */
+  .animate-pulse, .animate-spin, .skeleton-shimmer {
     animation: none !important;
   }
+  .skeleton-shimmer {
+    background: var(--muted) !important;
+  }
   html { scroll-behavior: auto; }
+  .chart-evolution-draw .recharts-area-curve,
+  .chart-evolution-draw .recharts-line-curve,
+  .chart-evolution-draw .recharts-curve,
+  .chart-evolution-draw path.recharts-area-curve,
+  .chart-evolution-draw path.recharts-line-curve,
+  .chart-evolution-draw path.recharts-curve {
+    stroke-dashoffset: 0 !important;
+  }
+  .chart-evolution-draw .recharts-area-area,
+  .chart-evolution-draw path.recharts-area-area {
+    clip-path: none;
+  }
+  .chart-area-enter,
+  .chart-area-pulse {
+    animation: none;
+    opacity: 1;
+  }
+  .chart-area-reveal,
+  .chart-area-reveal.chart-area-reveal-animate {
+    animation: none;
+    clip-path: none;
+  }
+  .animate-table-row-enter {
+    animation: none;
+    opacity: 1;
+  }
 }

@@ -14,6 +14,7 @@ import { safeErrorMessage } from '@/lib/utils'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Building2, Euro, FileText, Download, Trash2, Upload, Image } from 'lucide-react'
 import { SWR_KEYS, fetchSettings } from '@/lib/swr-fetchers'
+import { SWR_CACHE_LONG_OPTIONS } from '@/lib/swr-config'
 
 interface ParametresEntreprise {
   key: string
@@ -21,7 +22,7 @@ interface ParametresEntreprise {
 }
 
 export function SettingsContent() {
-  const { data, error, isLoading, mutate } = useSWR(SWR_KEYS.settings, fetchSettings)
+  const { data, error, isLoading, mutate } = useSWR(SWR_KEYS.settings, fetchSettings, SWR_CACHE_LONG_OPTIONS)
   const [editingParam, setEditingParam] = useState<string | null>(null)
   const [newValue, setNewValue] = useState('')
   const [uploading, setUploading] = useState(false)
@@ -202,6 +203,7 @@ export function SettingsContent() {
                     setEditingParam('companyName')
                     setNewValue(getParameterValue('companyName'))
                   }}
+                  className="transition-all border-transparent bg-muted/20 hover:border-primary/30 focus:bg-background focus:border-input"
                 />
                 {editingParam === 'companyName' && (
                   <Button
@@ -225,6 +227,7 @@ export function SettingsContent() {
                     setEditingParam('companyAddress')
                     setNewValue(getParameterValue('companyAddress'))
                   }}
+                  className="transition-all border-transparent bg-muted/20 hover:border-primary/30 focus:bg-background focus:border-input"
                 />
                 {editingParam === 'companyAddress' && (
                   <Button
@@ -248,6 +251,7 @@ export function SettingsContent() {
                     setEditingParam('companyPhone')
                     setNewValue(getParameterValue('companyPhone'))
                   }}
+                  className="transition-all border-transparent bg-muted/20 hover:border-primary/30 focus:bg-background focus:border-input"
                 />
                 {editingParam === 'companyPhone' && (
                   <Button
@@ -272,6 +276,7 @@ export function SettingsContent() {
                     setEditingParam('companyEmail')
                     setNewValue(getParameterValue('companyEmail'))
                   }}
+                  className="transition-all border-transparent bg-muted/20 hover:border-primary/30 focus:bg-background focus:border-input"
                 />
                 {editingParam === 'companyEmail' && (
                   <Button
@@ -297,6 +302,7 @@ export function SettingsContent() {
                     setEditingParam('siret')
                     setNewValue(getParameterValue('siret'))
                   }}
+                  className="transition-all border-transparent bg-muted/20 hover:border-primary/30 focus:bg-background focus:border-input"
                 />
                 {editingParam === 'siret' && (
                   <Button
@@ -414,6 +420,7 @@ export function SettingsContent() {
                     setEditingParam('defaultTvaRate')
                     setNewValue(getParameterValue('defaultTvaRate'))
                   }}
+                  className="transition-all border-transparent bg-muted/20 hover:border-primary/30 focus:bg-background focus:border-input"
                 />
                 {editingParam === 'defaultTvaRate' && (
                   <Button
@@ -442,6 +449,7 @@ export function SettingsContent() {
                     setEditingParam('tauxUrssaf')
                     setNewValue(getParameterValue('tauxUrssaf'))
                   }}
+                  className="transition-all border-transparent bg-muted/20 hover:border-primary/30 focus:bg-background focus:border-input"
                 />
                 {editingParam === 'tauxUrssaf' && (
                   <Button

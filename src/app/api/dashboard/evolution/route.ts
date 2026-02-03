@@ -26,11 +26,12 @@ export async function GET(request: NextRequest) {
     let monthOffset = 0 // Pour année : 0 ; pour trimestre : premier mois du trimestre (0,3,6,9)
 
     if (range === 'month' && monthParam) {
-      // Vue mensuelle : 1er au dernier jour du mois
-      startDate = new Date(year, monthParam - 1, 1)
-      endDate = new Date(year, monthParam, 0)
+      // Vue mensuelle : 1er au dernier jour du mois (UTC pour cohérence avec ventes stockées en date seule)
+      const lastDay = new Date(Date.UTC(year, monthParam, 0)).getUTCDate()
+      startDate = new Date(Date.UTC(year, monthParam - 1, 1, 0, 0, 0, 0))
+      endDate = new Date(Date.UTC(year, monthParam - 1, lastDay, 23, 59, 59, 999))
       granularity = 'day'
-      steps = endDate.getDate() // Nombre de jours dans le mois
+      steps = lastDay
     } else if (range === 'quarter' && monthParam) {
       // Vue trimestrielle : 3 mois (même période que les KPIs)
       const targetQuarter = Math.ceil(monthParam / 3)
@@ -142,9 +143,9 @@ export async function GET(request: NextRequest) {
           stepEnd.setHours(23, 59, 59, 999)
           label = stepStart.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })
         } else {
-          // Vue mensuelle : step = jour du mois
-          stepStart = new Date(year, (monthParam!) - 1, step)
-          stepEnd = new Date(year, (monthParam!) - 1, step, 23, 59, 59)
+          // Vue mensuelle : step = jour du mois (UTC pour matcher les ventes stockées en date seule)
+          stepStart = new Date(Date.UTC(year, (monthParam!) - 1, step, 0, 0, 0, 0))
+          stepEnd = new Date(Date.UTC(year, (monthParam!) - 1, step, 23, 59, 59, 999))
           label = stepStart.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })
         }
       } else {
@@ -237,8 +238,21 @@ export async function GET(request: NextRequest) {
           }
         } else {
           // Vente ponctuelle
-          if (saleDate >= stepStart && saleDate <= stepEnd) {
-            includeSale = true
+          if (granularity === 'day') {
+            // Vue jour : comparer en UTC pour cohérence (ventes "date seule" = minuit UTC)
+            const saleUtcDate = saleDate.getUTCDate()
+            const saleUtcMonth = saleDate.getUTCMonth()
+            const saleUtcYear = saleDate.getUTCFullYear()
+            const stepUtcDate = stepStart.getUTCDate()
+            const stepUtcMonth = stepStart.getUTCMonth()
+            const stepUtcYear = stepStart.getUTCFullYear()
+            if (saleUtcYear === stepUtcYear && saleUtcMonth === stepUtcMonth && saleUtcDate === stepUtcDate) {
+              includeSale = true
+            }
+          } else {
+            if (saleDate >= stepStart && saleDate <= stepEnd) {
+              includeSale = true
+            }
           }
         }
 
@@ -437,16 +451,100 @@ export async function GET(request: NextRequest) {
       }
     }).filter(s => s.salesCount > 0 || s.chargesCount > 0)
 
-    // On ignore clientAnalysis détaillé pour l'instant ou on le laisse vide/brut
-    const clientAnalysis = clients.map(client => ({
+    // Analyse Clients
+    const clientAnalysis = clients.map(client => {
+      let projectedTotal = 0
+      let count = 0
+      
+      sales.filter(s => s.clientName === client.clientName).forEach(sale => {
+         const sDate = new Date(sale.saleDate)
+         if (!sale.recurring) {
+            if (sDate >= startDate && sDate <= endDate) {
+               projectedTotal += sale.caHt
+               count++
+            }
+         } else {
+            let occurrences = 0
+            const saleEndDate = sale.endDate ? new Date(sale.endDate) : null
+            
+            if (sale.recurringType === 'mensuel') {
+               let current = new Date(startDate)
+               while (current <= endDate) {
+                  const occurrenceDate = new Date(current.getFullYear(), current.getMonth(), sDate.getDate())
+                  let isValid = true
+                  if (saleEndDate && occurrenceDate > saleEndDate) isValid = false
+                  
+                  if (isValid && occurrenceDate >= sDate && occurrenceDate >= startDate && occurrenceDate <= endDate) {
+                     occurrences++
+                  }
+                  current.setMonth(current.getMonth() + 1)
+               }
+            } else if (sale.recurringType === 'annuel') {
+               const occurrenceDate = new Date(year, sDate.getMonth(), sDate.getDate())
+               let isValid = true
+               if (saleEndDate && occurrenceDate > saleEndDate) isValid = false
+
+               if (isValid && occurrenceDate >= sDate && occurrenceDate >= startDate && occurrenceDate <= endDate) {
+                  occurrences++
+               }
+            }
+            projectedTotal += (sale.caHt * occurrences)
+            count += occurrences
+         }
+      })
+
+      return {
         clientName: client.clientName,
         contactPerson: client.email,
-        salesCount: 0,
-        salesTotal: 0,
-        chargesCount: 0,
+        salesCount: count,
+        salesTotal: projectedTotal,
+        chargesCount: 0, 
         chargesTotal: 0,
         linkedServices: 0
-    }))
+      }
+    }).filter(c => c.salesCount > 0).sort((a, b) => b.salesTotal - a.salesTotal)
+
+    // Analyse Répartition Revenus (Récurrent vs Ponctuel)
+    let totalRecurring = 0
+    let totalOneTime = 0
+    
+    // On réutilise serviceAnalysis ou on refait une passe rapide ?
+    // Refaisons une passe rapide sur sales agrégées
+    // Ou mieux, on utilise clientAnalysis pour le total global et on sait déjà ce qui est récurrent dans sales...
+    // Non, clientAnalysis mélange tout.
+    
+    sales.forEach(sale => {
+         const sDate = new Date(sale.saleDate)
+         let amount = 0
+         
+         if (!sale.recurring) {
+            if (sDate >= startDate && sDate <= endDate) {
+               amount = sale.caHt
+               totalOneTime += amount
+            }
+         } else {
+            let occurrences = 0
+            const saleEndDate = sale.endDate ? new Date(sale.endDate) : null
+            
+            if (sale.recurringType === 'mensuel') {
+               let current = new Date(startDate)
+               while (current <= endDate) {
+                  const occurrenceDate = new Date(current.getFullYear(), current.getMonth(), sDate.getDate())
+                  let isValid = true
+                  if (saleEndDate && occurrenceDate > saleEndDate) isValid = false
+                  if (isValid && occurrenceDate >= sDate && occurrenceDate >= startDate && occurrenceDate <= endDate) occurrences++
+                  current.setMonth(current.getMonth() + 1)
+               }
+            } else if (sale.recurringType === 'annuel') {
+               const occurrenceDate = new Date(year, sDate.getMonth(), sDate.getDate())
+               let isValid = true
+               if (saleEndDate && occurrenceDate > saleEndDate) isValid = false
+               if (isValid && occurrenceDate >= sDate && occurrenceDate >= startDate && occurrenceDate <= endDate) occurrences++
+            }
+            amount = sale.caHt * occurrences
+            totalRecurring += amount
+         }
+    })
 
     // Données mensuelles par service (ou journalières si range=month)
     const monthlyServiceData = []
@@ -471,12 +569,14 @@ export async function GET(request: NextRequest) {
           linkedSalesCount: periodTotals.linkedSales,
           linkedChargesCount: 0,
           crossLinkedCount: 0,
-          linkingRate: 0
+          linkingRate: 0,
+          recurringShare: totalRecurring,
+          oneTimeShare: totalOneTime
         },
         serviceAnalysis,
         clientAnalysis
       },
-      { headers: { 'Cache-Control': 'private, max-age=60' } }
+      { headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate', 'Pragma': 'no-cache', 'Expires': '0' } }
     )
 
   } catch (error) {

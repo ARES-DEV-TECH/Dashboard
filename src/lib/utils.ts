@@ -15,6 +15,22 @@ export function formatCurrency(value: number | undefined | null): string {
   }).format(value)
 }
 
+/** Mois courts français pour affichage tableau (ex. 2026-avr-01). */
+const TABLE_DATE_MONTHS = ['janv', 'févr', 'mars', 'avr', 'mai', 'juin', 'juil', 'août', 'sept', 'oct', 'nov', 'déc']
+
+/**
+ * Formate une date pour l'affichage dans les tableaux : 2026-avr-01
+ */
+export function formatTableDate(date: Date | string | null | undefined): string {
+  if (date == null) return ''
+  const d = typeof date === 'string' ? new Date(date) : date
+  if (Number.isNaN(d.getTime())) return ''
+  const y = d.getFullYear()
+  const m = d.getMonth()
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${TABLE_DATE_MONTHS[m]}-${day}`
+}
+
 /** Échappe le HTML pour affichage dans un email (évite XSS dans le client mail). */
 export function escapeHtml(s: string): string {
   return s

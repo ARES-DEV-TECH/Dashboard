@@ -80,7 +80,11 @@ export function SectionCards({ kpis }: { kpis: DashboardData['kpis'] }) {
   return (
     <div className="grid grid-cols-1 gap-4 px-4 @xl/main:grid-cols-2 @5xl/main:grid-cols-4 lg:px-6">
       {cards.map((card, i) => (
-        <Card key={i}>
+        <Card
+          key={i}
+          className="relative overflow-hidden transition-all hover:shadow-md border-primary/10 bg-background/60 backdrop-blur-sm"
+        >
+          <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent opacity-50 pointer-events-none" />
           <CardHeader className="relative">
             <div className="flex items-center gap-1.5">
               <CardDescription>{card.title}</CardDescription>
@@ -121,7 +125,7 @@ export function SectionCards({ kpis }: { kpis: DashboardData['kpis'] }) {
                     <TrendingDown className="size-3" />
                   )}
                   {card.change > 0 ? '+' : ''}
-                  {card.change}%
+                  {Number(card.change).toFixed(1)}%
                 </Badge>
               </div>
             )}

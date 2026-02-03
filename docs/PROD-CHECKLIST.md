@@ -45,6 +45,16 @@
 - [x] **Renvoyer email de confirmation** : 3 demandes / minute par IP.
 - [ ] Pour une limite **globale** (multi-instances) : prévoir Redis ou Vercel KV (optionnel).
 
+## Notifier les utilisateurs d’un changement d’URL
+
+Si vous changez de domaine ou de projet (ex. nouvelle URL Vercel) et souhaitez prévenir tous les utilisateurs :
+
+1. **Script** : `npx tsx scripts/notify-users-new-url.ts "https://dashboard-three-beta-62.vercel.app/dashboard"`
+2. Ou définir `NEW_APP_URL` dans `.env.local` puis lancer `npx tsx scripts/notify-users-new-url.ts`
+3. Le script envoie un email à **chaque utilisateur avec email vérifié** (Resend ou SMTP déjà configuré). Prérequis : `DATABASE_URL`, `RESEND_API_KEY` (ou SMTP).
+
+**Note** : L’URL de production Vercel (déploiement `main`) est stable. Utilisez un **domaine personnalisé** pour éviter de changer d’URL. Ce script sert surtout quand vous changez de domaine ou de projet.
+
 ## Procédure de rollback
 
 En cas de problème après un déploiement :

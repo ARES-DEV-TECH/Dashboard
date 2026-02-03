@@ -46,7 +46,8 @@ export function AnalyticsCharges({ data }: AnalyticsChargesProps) {
     <div className="space-y-6">
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
         {/* Tableau détaillé */}
-        <Card className="col-span-4 order-2 lg:order-1">
+        <Card className="col-span-4 order-2 lg:order-1 relative overflow-hidden transition-all hover:shadow-md border-primary/10 bg-background/60 backdrop-blur-sm">
+          <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent opacity-50 pointer-events-none" />
           <CardHeader>
             <CardTitle>Détail des Charges</CardTitle>
             <CardDescription>Par catégorie de dépense</CardDescription>
@@ -91,7 +92,8 @@ export function AnalyticsCharges({ data }: AnalyticsChargesProps) {
         </Card>
 
         {/* Graphique */}
-        <Card className="col-span-3 order-1 lg:order-2">
+        <Card className="col-span-3 order-1 lg:order-2 relative overflow-hidden transition-all hover:shadow-md border-primary/10 bg-background/60 backdrop-blur-sm">
+          <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent opacity-50 pointer-events-none" />
           <CardHeader>
             <CardTitle>Répartition des Dépenses</CardTitle>
             <CardDescription>Top catégories</CardDescription>
@@ -124,7 +126,9 @@ export function AnalyticsCharges({ data }: AnalyticsChargesProps) {
             {totals && (
               <div className="mt-4 text-center">
                 <p className="text-sm text-muted-foreground">Total des charges</p>
-                <p className="text-2xl font-bold text-red-600">{formatCurrency(totals.total)}</p>
+                <p className="text-2xl font-bold text-red-600">
+                  {formatCurrency(totals.totalHt ?? totals.totalTtc ?? 0)}
+                </p>
               </div>
             )}
           </CardContent>

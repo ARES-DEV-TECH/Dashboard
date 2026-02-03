@@ -1,4 +1,10 @@
-import { ClientsContent } from './clients-content'
+import dynamic from 'next/dynamic'
+import ClientsLoading from './loading'
+
+const ClientsContent = dynamic(
+  () => import('./clients-content').then((m) => ({ default: m.ClientsContent })),
+  { loading: () => <ClientsLoading /> }
+)
 
 export default function ClientsPage() {
   return (

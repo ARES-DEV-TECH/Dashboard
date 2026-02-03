@@ -28,42 +28,9 @@ export function AnalyticsServices({ data }: AnalyticsServicesProps) {
   return (
     <div className="space-y-6">
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-        {/* Graphique de distribution */}
-        <Card className="col-span-3">
-          <CardHeader>
-            <CardTitle>Répartition du Chiffre d'Affaires</CardTitle>
-            <CardDescription>Par service sur la période</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="h-[300px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={serviceDistribution}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={60}
-                    outerRadius={80}
-                    paddingAngle={5}
-                    dataKey="value"
-                  >
-                    {serviceDistribution.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip 
-                    formatter={(value: number | undefined) => formatCurrency(value ?? 0)}
-                    contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                  />
-                  <Legend />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-          </CardContent>
-        </Card>
-
         {/* Tableau détaillé */}
-        <Card className="col-span-4">
+        <Card className="col-span-4 relative overflow-hidden transition-all hover:shadow-md border-primary/10 bg-background/60 backdrop-blur-sm">
+          <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent opacity-50 pointer-events-none" />
           <CardHeader>
             <CardTitle>Détail par Service</CardTitle>
             <CardDescription>Performance et métriques</CardDescription>
@@ -104,6 +71,41 @@ export function AnalyticsServices({ data }: AnalyticsServicesProps) {
                 })}
               </TableBody>
             </Table>
+          </CardContent>
+        </Card>
+
+        {/* Graphique de distribution */}
+        <Card className="col-span-3 relative overflow-hidden transition-all hover:shadow-md border-primary/10 bg-background/60 backdrop-blur-sm">
+          <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent opacity-50 pointer-events-none" />
+          <CardHeader>
+            <CardTitle>Répartition du Chiffre d'Affaires</CardTitle>
+            <CardDescription>Par service sur la période</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="h-[300px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={serviceDistribution}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={60}
+                    outerRadius={80}
+                    paddingAngle={5}
+                    dataKey="value"
+                  >
+                    {serviceDistribution.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip 
+                    formatter={(value: number | undefined) => formatCurrency(value ?? 0)}
+                    contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                  />
+                  <Legend />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
           </CardContent>
         </Card>
       </div>

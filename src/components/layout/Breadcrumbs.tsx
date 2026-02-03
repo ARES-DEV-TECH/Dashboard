@@ -7,6 +7,7 @@ import { ChevronRight, LayoutDashboard } from 'lucide-react'
 /** Libellés génériques pour les segments d’URL (pas de noms, IDs ou filtres sensibles). */
 const SEGMENT_LABELS: Record<string, string> = {
   dashboard: 'Tableau de bord',
+  analytics: 'Analytics',
   clients: 'Clients',
   articles: 'Articles',
   sales: 'Ventes',

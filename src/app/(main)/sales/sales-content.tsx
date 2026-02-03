@@ -13,9 +13,10 @@ import { generateCSV, downloadCSV } from '@/lib/csv'
 import { getDefaultTvaRate } from '@/lib/settings'
 import { electronFetch } from '@/lib/electron-api'
 import { toast } from 'sonner'
-import { safeErrorMessage } from '@/lib/utils'
+import { safeErrorMessage, formatTableDate } from '@/lib/utils'
 import { SWR_KEYS, fetchClients, fetchArticles, fetchSalesList, fetchCharges } from '@/lib/swr-fetchers'
-import { Plus, Columns3 } from 'lucide-react'
+import { SWR_LIST_OPTIONS } from '@/lib/swr-config'
+import { Plus, Columns3, FileText, User, Package } from 'lucide-react'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
@@ -27,8 +28,8 @@ type SaleRow = {
   clientCompany: string
   clientLastName: string
   clientFirstName: string
-  totalTtc: number
   serviceName: string
+  totalTtc: number
   quantity: number
   unitPriceHt: number
   caHt: number
@@ -38,6 +39,7 @@ type SaleRow = {
   recurringType?: string | null
   endDate?: string | null
   year?: number
+  status?: string
   [key: string]: unknown
 }
 
@@ -48,17 +50,19 @@ const DEFAULT_COLUMN_VISIBILITY: Record<string, boolean> = {
   clientCompany: true,
   clientLastName: true,
   clientFirstName: true,
+  serviceName: true,
   saleDate: true,
   recurringType: true,
+  status: true,
   totalTtc: true,
 }
 
 export function SalesContent() {
   const { mutate: globalMutate } = useSWRConfig()
-  const { data: salesListData, isLoading: salesLoading, mutate: mutateSalesList } = useSWR(SWR_KEYS.salesList, fetchSalesList, { revalidateOnFocus: false, dedupingInterval: 10000, keepPreviousData: true })
-  const { data: clients = [], isLoading: clientsLoading } = useSWR(SWR_KEYS.clients, fetchClients, { revalidateOnFocus: false, dedupingInterval: 10000, keepPreviousData: true })
-  const { data: articles = [], isLoading: articlesLoading } = useSWR(SWR_KEYS.articles, fetchArticles, { revalidateOnFocus: false, dedupingInterval: 10000, keepPreviousData: true })
-  const { data: chargesData, isLoading: chargesLoading, mutate: mutateCharges } = useSWR(SWR_KEYS.charges, fetchCharges, { revalidateOnFocus: false, dedupingInterval: 10000, keepPreviousData: true })
+  const { data: salesListData, isLoading: salesLoading, mutate: mutateSalesList } = useSWR(SWR_KEYS.salesList, fetchSalesList, SWR_LIST_OPTIONS)
+  const { data: clients = [], isLoading: clientsLoading } = useSWR(SWR_KEYS.clients, fetchClients, SWR_LIST_OPTIONS)
+  const { data: articles = [], isLoading: articlesLoading } = useSWR(SWR_KEYS.articles, fetchArticles, SWR_LIST_OPTIONS)
+  const { data: chargesData, isLoading: chargesLoading, mutate: mutateCharges } = useSWR(SWR_KEYS.charges, fetchCharges, SWR_LIST_OPTIONS)
 
   const rawSales = salesListData?.sales ?? []
   const charges = chargesData?.charges ?? []
@@ -112,7 +116,7 @@ export function SalesContent() {
     saleDate: '', invoiceNo: '', clientName: '', serviceName: '', quantity: 1, unitPriceHt: 0,
     unitLabel: '' as string, selectedOptions: [] as string[], linkedCharges: [] as string[],
     recurringType: 'ponctuel' as 'ponctuel' | 'mensuel' | 'annuel',
-    endDate: ''
+    endDate: '', status: 'paid'
   })
   const [selectedServiceOptions, setSelectedServiceOptions] = useState([] as any[])
   const [selectedOptions, setSelectedOptions] = useState([] as any[])
@@ -186,7 +190,8 @@ export function SalesContent() {
       selectedOptions: [],
       linkedCharges: [],
       recurringType: 'ponctuel',
-      endDate: ''
+      endDate: '',
+      status: 'paid'
     })
     setHoursInput('')
     setSelectedServiceOptions([])
@@ -240,7 +245,8 @@ export function SalesContent() {
       selectedOptions: [],
       linkedCharges: linkedCharges,
       recurringType: sale.recurringType || (sale.recurring ? 'mensuel' : 'ponctuel'),
-      endDate: formatDateForInput(sale.endDate)
+      endDate: formatDateForInput(sale.endDate),
+      status: sale.status || 'paid'
     })
     setHoursInput(unitLabel === 'heure' ? String(sale.quantity) : '')
     
@@ -300,7 +306,8 @@ export function SalesContent() {
       year: new Date(formData.saleDate).getFullYear(),
       recurring: isRecurring,
       recurringType: formData.recurringType,
-      endDate: isRecurring && formData.endDate ? new Date(formData.endDate).toISOString() : null
+      endDate: isRecurring && formData.endDate ? new Date(formData.endDate).toISOString() : null,
+      status: formData.status
     }
 
     const url = editingSale ? `/api/sales/${editingSale.invoiceNo}` : '/api/sales'
@@ -323,7 +330,8 @@ export function SalesContent() {
       tvaAmount: totalHt * 0.2,
       recurring: isRecurring,
       recurringType: formData.recurringType,
-      endDate: isRecurring && formData.endDate ? formData.endDate : null
+      endDate: isRecurring && formData.endDate ? formData.endDate : null,
+      status: formData.status
     }
     if (editingSale) {
       const optimistic = sales.map(s =>
@@ -391,7 +399,11 @@ export function SalesContent() {
         } else {
           await mutateSalesList()
         }
-        await Promise.all([mutateCharges(), globalMutate(SWR_KEYS.sales)])
+        await Promise.all([
+          mutateCharges(),
+          globalMutate(SWR_KEYS.sales),
+          globalMutate((k) => typeof k === 'string' && k.startsWith('dashboard'), undefined, { revalidate: true })
+        ])
         setIsDialogOpen(false)
         setEditingSale(null)
         toast.success('Ventes', { description: editingSale ? 'Vente mise à jour.' : 'Vente enregistrée.' })
@@ -421,7 +433,11 @@ export function SalesContent() {
       const url = `/api/sales/${encodeURIComponent(invoiceNo)}`
       const response = await electronFetch(url, { method: 'DELETE' })
       if (response.ok) {
-        await Promise.all([mutateSalesList(), globalMutate(SWR_KEYS.sales)])
+        await Promise.all([
+          mutateSalesList(),
+          globalMutate(SWR_KEYS.sales),
+          globalMutate((k) => typeof k === 'string' && k.startsWith('dashboard'), undefined, { revalidate: true })
+        ])
         toast.success('Ventes', { description: 'Vente supprimée.' })
       } else {
         mutateSalesList({ sales: previousSales, pagination: salesListData?.pagination }, { revalidate: false })
@@ -492,16 +508,17 @@ export function SalesContent() {
       { key: 'clientCompany', label: 'Entreprise', sortable: true, sortLabel: 'alpha' },
       { key: 'clientLastName', label: 'Nom', sortable: true, sortLabel: 'alpha' },
       { key: 'clientFirstName', label: 'Prénom', sortable: true, sortLabel: 'alpha' },
+      { key: 'serviceName', label: 'Service', sortable: true, sortLabel: 'alpha', render: (v: unknown) => (v ? String(v) : '—') },
       {
         key: 'saleDate',
         label: 'Date',
         sortable: true,
         sortLabel: 'numeric',
-        render: (val: unknown) => (val ? new Date(String(val)).toLocaleDateString('fr-FR') : ''),
+        render: (val: unknown) => (val ? formatTableDate(String(val)) : ''),
       },
       {
         key: 'recurringType',
-        label: 'Ponctualité',
+        label: 'Fréquence',
         sortable: true,
         sortLabel: 'alpha',
         render: (val: unknown) => {
@@ -509,6 +526,19 @@ export function SalesContent() {
           if (v === 'mensuel') return 'Mensuel'
           if (v === 'annuel') return 'Annuel'
           return 'Ponctuel'
+        },
+      },
+      {
+        key: 'status',
+        label: 'Statut',
+        sortable: true,
+        sortLabel: 'alpha',
+        render: (val: unknown) => {
+          const s = String(val ?? 'paid').toLowerCase()
+          if (s === 'paid') return 'Payée'
+          if (s === 'pending') return 'En attente'
+          if (s === 'cancelled') return 'Annulée'
+          return s
         },
       },
       {
@@ -594,6 +624,7 @@ export function SalesContent() {
         searchPlaceholder="Rechercher (facture, client, service…)"
         pagination
         pageSize={15}
+        defaultSort={{ field: 'saleDate', direction: 'desc' }}
         toolbarExtra={columnsPopover}
         onExport={handleExportCSV}
         onAdd={handleAdd}
@@ -614,158 +645,193 @@ export function SalesContent() {
           </DialogHeader>
           
           <form onSubmit={handleSubmit} className="space-y-6 py-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-              <div className="space-y-2">
-                <Label htmlFor="saleDate">Date de vente</Label>
-                <Input
-                  id="saleDate"
-                  type="date"
-                  value={formData.saleDate}
-                  onChange={(e) => setFormData(prev => ({ ...prev, saleDate: e.target.value }))}
-                  required
-                />
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="invoiceNo">N° Facture</Label>
-                <Input
-                  id="invoiceNo"
-                  value={formData.invoiceNo}
-                  onChange={(e) => setFormData(prev => ({ ...prev, invoiceNo: e.target.value }))}
-                  placeholder="F2026-000001"
-                  maxLength={50}
-                  pattern="[A-Za-z0-9\-]+"
-                  title="Lettres, chiffres et tirets uniquement (pas de caractères spéciaux)"
-                  required
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-              <div className="space-y-2">
-                <Label htmlFor="recurringType">Fréquence</Label>
-                <Select 
-                  value={formData.recurringType} 
-                  onValueChange={(value: 'ponctuel' | 'mensuel' | 'annuel') => setFormData(prev => ({ ...prev, recurringType: value }))}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Sélectionner la fréquence" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="ponctuel">Ponctuel (Une fois)</SelectItem>
-                    <SelectItem value="mensuel">Mensuel (Abonnement)</SelectItem>
-                    <SelectItem value="annuel">Annuel (Abonnement)</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {formData.recurringType !== 'ponctuel' && (
-                <div className="space-y-2">
-                  <Label htmlFor="endDate">Date de fin (Optionnel)</Label>
-                  <Input
-                    id="endDate"
-                    type="date"
-                    value={formData.endDate}
-                    onChange={(e) => setFormData(prev => ({ ...prev, endDate: e.target.value }))}
-                    placeholder="Laisser vide si indéfini"
-                  />
-                  <p className="text-xs text-muted-foreground">Laissez vide pour une durée indéterminée</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Colonne Gauche : Informations Générales */}
+              <div className="space-y-6">
+                <div className="bg-muted/30 p-4 rounded-lg border space-y-4">
+                  <h3 className="font-medium text-sm flex items-center gap-2 text-foreground/80">
+                    <FileText className="size-4" /> Informations Facture
+                  </h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="saleDate">Date</Label>
+                      <Input
+                        id="saleDate"
+                        type="date"
+                        value={formData.saleDate}
+                        onChange={(e) => setFormData(prev => ({ ...prev, saleDate: e.target.value }))}
+                        required
+                        className="bg-background"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="invoiceNo">N° Facture</Label>
+                      <Input
+                        id="invoiceNo"
+                        value={formData.invoiceNo}
+                        onChange={(e) => setFormData(prev => ({ ...prev, invoiceNo: e.target.value }))}
+                        placeholder="F2026-000001"
+                        maxLength={50}
+                        pattern="[A-Za-z0-9\-]+"
+                        title="Lettres, chiffres et tirets uniquement"
+                        required
+                        className="bg-background"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="status">Statut</Label>
+                    <Select
+                      value={formData.status}
+                      onValueChange={(value) => setFormData(prev => ({ ...prev, status: value }))}
+                    >
+                      <SelectTrigger className="bg-background">
+                        <SelectValue placeholder="Sélectionner le statut" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="paid">Payée</SelectItem>
+                        <SelectItem value="pending">En attente</SelectItem>
+                        <SelectItem value="cancelled">Annulée</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
-              )}
-            </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-              <div className="space-y-2">
-                <Label htmlFor="clientName">Client</Label>
-                <Select value={formData.clientName} onValueChange={(value) => setFormData(prev => ({ ...prev, clientName: value }))}>
-                  <SelectTrigger aria-label="Sélectionner un client">
-                    <SelectValue placeholder="Sélectionner un client" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {clients.length === 0 ? (
-                      <SelectItem value="no-clients" disabled>
-                        Aucun client disponible
-                      </SelectItem>
-                    ) : (
-                      clients.map((client) => (
-                        <SelectItem key={client.clientName ?? ''} value={client.clientName ?? ''}>
-                          {[client.firstName, client.lastName].filter(Boolean).join(' ') || client.clientName}
-                        </SelectItem>
-                      ))
-                    )}
-                  </SelectContent>
-                </Select>
+                <div className="bg-muted/30 p-4 rounded-lg border space-y-4">
+                  <h3 className="font-medium text-sm flex items-center gap-2 text-foreground/80">
+                    <User className="size-4" /> Client
+                  </h3>
+                  <div className="space-y-2">
+                    <Label htmlFor="clientName">Client</Label>
+                    <Select value={formData.clientName} onValueChange={(value) => setFormData(prev => ({ ...prev, clientName: value }))}>
+                      <SelectTrigger aria-label="Sélectionner un client" className="bg-background">
+                        <SelectValue placeholder="Sélectionner un client" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {clients.length === 0 ? (
+                          <SelectItem value="no-clients" disabled>
+                            Aucun client disponible
+                          </SelectItem>
+                        ) : (
+                          clients.map((client) => (
+                            <SelectItem key={client.clientName ?? ''} value={client.clientName ?? ''}>
+                              {[client.firstName, client.lastName].filter(Boolean).join(' ') || client.clientName}
+                            </SelectItem>
+                          ))
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
               </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="serviceName">Service</Label>
-                <Select 
-                  value={formData.serviceName} 
-                  onValueChange={handleServiceChange}
-                >
-                  <SelectTrigger aria-label="Sélectionner un service">
-                    <SelectValue placeholder="Sélectionner un service" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {articles.map((article) => (
-                      <SelectItem key={article.serviceName} value={article.serviceName}>
-                        {article.serviceName}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              <div className="space-y-2">
-                <Label htmlFor="quantity">
-                  {formData.unitLabel === 'heure' ? 'Nombre d\'heures *' : 'Quantité'}
-                </Label>
-                {formData.unitLabel === 'heure' ? (
-                  <Input
-                    id="quantity"
-                    type="text"
-                    inputMode="decimal"
-                    value={hoursInput}
-                    onChange={(e) => setHoursInput(e.target.value.replace(',', '.'))}
-                    onBlur={() => {
-                      const n = parseFloat(hoursInput.replace(',', '.'))
-                      if (!isNaN(n) && n >= 0.5) {
-                        setFormData(prev => ({ ...prev, quantity: n }))
-                        setHoursInput(String(n))
-                      }
-                    }}
-                    placeholder="Ex: 2.5"
-                    required
-                  />
-                ) : (
-                  <Input
-                    id="quantity"
-                    type="number"
-                    min={1}
-                    value={formData.quantity}
-                    onChange={(e) => setFormData(prev => ({ ...prev, quantity: parseInt(e.target.value) || 1 }))}
-                    required
-                  />
-                )}
-                {formData.unitLabel === 'heure' && (
-                  <p className="text-xs text-muted-foreground">Minimum 0,5 heure.</p>
-                )}
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="unitPriceHt">
-                  {formData.unitLabel === 'heure' ? 'Prix par heure HT' : 'Prix unitaire HT'}
-                </Label>
-                <Input
-                  id="unitPriceHt"
-                  type="number"
-                  step="0.01"
-                  value={formData.unitPriceHt}
-                  onChange={(e) => setFormData(prev => ({ ...prev, unitPriceHt: parseFloat(e.target.value) || 0 }))}
-                  required
-                />
+              {/* Colonne Droite : Détails Service */}
+              <div className="space-y-6">
+                <div className="bg-muted/30 p-4 rounded-lg border space-y-4 h-full">
+                  <h3 className="font-medium text-sm flex items-center gap-2 text-foreground/80">
+                    <Package className="size-4" /> Service & Tarification
+                  </h3>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="serviceName">Service</Label>
+                    <Select 
+                      value={formData.serviceName} 
+                      onValueChange={handleServiceChange}
+                    >
+                      <SelectTrigger aria-label="Sélectionner un service" className="bg-background">
+                        <SelectValue placeholder="Sélectionner un service" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {articles.map((article) => (
+                          <SelectItem key={article.serviceName} value={article.serviceName}>
+                            {article.serviceName}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="unitPriceHt">
+                        {formData.unitLabel === 'heure' ? 'Prix/h HT' : 'Prix unit. HT'}
+                      </Label>
+                      <Input
+                        id="unitPriceHt"
+                        type="number"
+                        step="0.01"
+                        value={formData.unitPriceHt}
+                        onChange={(e) => setFormData(prev => ({ ...prev, unitPriceHt: parseFloat(e.target.value) || 0 }))}
+                        required
+                        className="bg-background"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="quantity">
+                        {formData.unitLabel === 'heure' ? 'Heures *' : 'Quantité'}
+                      </Label>
+                      {formData.unitLabel === 'heure' ? (
+                        <Input
+                          id="quantity"
+                          type="text"
+                          inputMode="decimal"
+                          value={hoursInput}
+                          onChange={(e) => setHoursInput(e.target.value.replace(',', '.'))}
+                          onBlur={() => {
+                            const n = parseFloat(hoursInput.replace(',', '.'))
+                            if (!isNaN(n) && n >= 0.5) {
+                              setFormData(prev => ({ ...prev, quantity: n }))
+                              setHoursInput(String(n))
+                            }
+                          }}
+                          placeholder="Ex: 2.5"
+                          required
+                          className="bg-background"
+                        />
+                      ) : (
+                        <Input
+                          id="quantity"
+                          type="number"
+                          min={1}
+                          value={formData.quantity}
+                          onChange={(e) => setFormData(prev => ({ ...prev, quantity: parseInt(e.target.value) || 1 }))}
+                          required
+                          className="bg-background"
+                        />
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="space-y-2 pt-2 border-t border-border/50">
+                    <Label htmlFor="recurringType">Récurrence</Label>
+                    <Select 
+                      value={formData.recurringType} 
+                      onValueChange={(value: 'ponctuel' | 'mensuel' | 'annuel') => setFormData(prev => ({ ...prev, recurringType: value }))}
+                    >
+                      <SelectTrigger className="bg-background">
+                        <SelectValue placeholder="Sélectionner la fréquence" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="ponctuel">Ponctuel (Une fois)</SelectItem>
+                        <SelectItem value="mensuel">Mensuel (Abonnement)</SelectItem>
+                        <SelectItem value="annuel">Annuel (Abonnement)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {formData.recurringType !== 'ponctuel' && (
+                    <div className="space-y-2">
+                      <Label htmlFor="endDate">Fin (Optionnel)</Label>
+                      <Input
+                        id="endDate"
+                        type="date"
+                        value={formData.endDate}
+                        onChange={(e) => setFormData(prev => ({ ...prev, endDate: e.target.value }))}
+                        className="bg-background"
+                      />
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -863,7 +929,7 @@ export function SalesContent() {
                           </div>
                           <div className="text-xs text-muted-foreground mt-0.5">
                             {charge.category && `${charge.category} • `}
-                            {new Date(charge.expenseDate).toLocaleDateString('fr-FR')}
+                            {formatTableDate(charge.expenseDate)}
                           </div>
                         </Label>
                       </div>

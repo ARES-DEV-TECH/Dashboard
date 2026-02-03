@@ -1,6 +1,7 @@
 import * as React from 'react'
 import { AppSidebar } from '@/components/app-sidebar'
 import { DashboardHeader } from '@/components/dashboard-header'
+import { NavigationProgress } from '@/components/NavigationProgress'
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
 
 export default function MainLayout({ children }: { children: React.ReactNode }) {
@@ -13,6 +14,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
         } as React.CSSProperties
       }
     >
+      <NavigationProgress />
       <AppSidebar variant="inset" />
       <SidebarInset>
         <DashboardHeader />

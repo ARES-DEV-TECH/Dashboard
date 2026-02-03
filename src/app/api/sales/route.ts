@@ -7,9 +7,6 @@ import { calculateSaleAmounts } from '@/lib/math'
 import { getNextInvoiceNumber } from '@/lib/invoice-number'
 import { ZodError } from 'zod'
 
-const salesCache = new Map<string, { data: unknown; timestamp: number }>()
-const CACHE_DURATION = 2 * 60 * 1000 // 2 minutes (données cohérentes avec le dashboard)
-
 export async function GET(request: NextRequest) {
   try {
     const user = await getCurrentUser(request)
@@ -22,15 +19,6 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '10')
     const search = searchParams.get('search') || ''
     const year = searchParams.get('year')
-
-    const cacheKey = `sales-${user.id}-${page}-${limit}-${search}-${year}`
-
-    const cached = salesCache.get(cacheKey)
-    if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
-      return NextResponse.json(cached.data, {
-        headers: { 'Cache-Control': 'private, max-age=120', 'X-Cache': 'HIT' }
-      })
-    }
 
     const skip = (page - 1) * limit
 
@@ -74,13 +62,11 @@ export async function GET(request: NextRequest) {
       },
     }
     
-    // Mettre en cache les données (avec timestamp pour expiration)
-    salesCache.set(cacheKey, { data: responseData, timestamp: Date.now() })
-    
     return NextResponse.json(responseData, {
       headers: {
-        'Cache-Control': 'public, max-age=300', // 5 minutes
-        'X-Cache': 'MISS'
+        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0',
       }
     })
   } catch (error) {

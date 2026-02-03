@@ -13,13 +13,14 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Textarea } from '@/components/ui/textarea'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { Settings, Plus, Trash2, Columns3 } from 'lucide-react'
+import { Settings, Plus, Trash2, Columns3, Package, Banknote } from 'lucide-react'
 import { Article } from '@/lib/validations'
 import { generateCSV, downloadCSV } from '@/lib/csv'
 import { electronFetch } from '@/lib/electron-api'
 import { toast } from 'sonner'
 import { Skeleton } from '@/components/ui/skeleton'
 import { SWR_KEYS, fetchArticles } from '@/lib/swr-fetchers'
+import { SWR_LIST_OPTIONS } from '@/lib/swr-config'
 
 const ARTICLES_COLUMNS_STORAGE_KEY = 'articles-table-columns'
 const DEFAULT_ARTICLES_COLUMN_VISIBILITY: Record<string, boolean> = {
@@ -40,11 +41,7 @@ interface ServiceOption {
 }
 
 export function ArticlesContent() {
-  const { data: articles = [], error, isLoading, mutate } = useSWR<Article[]>(SWR_KEYS.articles, fetchArticles, {
-    revalidateOnFocus: false,
-    dedupingInterval: 10000,
-    keepPreviousData: true,
-  })
+  const { data: articles = [], error, isLoading, mutate } = useSWR<Article[]>(SWR_KEYS.articles, fetchArticles, SWR_LIST_OPTIONS)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingArticle, setEditingArticle] = useState<Article | null>(null)
   const [formData, setFormData] = useState<Partial<Article>>({})
@@ -406,89 +403,103 @@ export function ArticlesContent() {
             </DialogTitle>
           </DialogHeader>
           
-          <div className="space-y-4">
-            <div>
-              <Label htmlFor="serviceName">Nom du service *</Label>
-              <Input
-                id="serviceName"
-                value={formData.serviceName || ''}
-                onChange={(e) => setFormData({ ...formData, serviceName: e.target.value })}
-                placeholder="Nom du service"
-              />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 py-4">
+            <div className="space-y-6">
+              <div className="bg-muted/30 p-4 rounded-lg border space-y-4 h-full">
+                <h3 className="font-medium text-sm flex items-center gap-2 text-foreground/80">
+                  <Package className="size-4" /> Détails
+                </h3>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="serviceName">Nom du service *</Label>
+                  <Input
+                    id="serviceName"
+                    value={formData.serviceName || ''}
+                    onChange={(e) => setFormData({ ...formData, serviceName: e.target.value })}
+                    placeholder="Nom du service"
+                    className="bg-background"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="type">Type</Label>
+                  <Select
+                    value={formData.type || 'service'}
+                    onValueChange={(value) => setFormData({ ...formData, type: value as 'service' | 'produit' })}
+                  >
+                    <SelectTrigger aria-label="Type d'article" className="bg-background">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="service">Service</SelectItem>
+                      <SelectItem value="produit">Produit</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
             </div>
-            
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="billByHour"
-                checked={!!formData.billByHour}
-                onCheckedChange={(checked) => setFormData({ ...formData, billByHour: !!checked })}
-              />
-              <Label htmlFor="billByHour" className="cursor-pointer">
-                Facturer à l&apos;heure
-              </Label>
+
+            <div className="space-y-6">
+              <div className="bg-muted/30 p-4 rounded-lg border space-y-4 h-full">
+                <h3 className="font-medium text-sm flex items-center gap-2 text-foreground/80">
+                  <Banknote className="size-4" /> Tarification
+                </h3>
+                
+                <div className="space-y-4">
+                  <div className="flex items-center space-x-2 bg-background p-2 rounded border">
+                    <Checkbox
+                      id="billByHour"
+                      checked={!!formData.billByHour}
+                      onCheckedChange={(checked) => setFormData({ ...formData, billByHour: !!checked })}
+                    />
+                    <Label htmlFor="billByHour" className="cursor-pointer flex-1">
+                      Facturer à l&apos;heure
+                    </Label>
+                  </div>
+                  
+                  {formData.billByHour && (
+                    <p className="text-xs text-muted-foreground bg-blue-500/10 text-blue-600 rounded px-2 py-1.5 border border-blue-200 dark:border-blue-900">
+                      Le nombre d&apos;heures sera demandé lors de la vente.
+                    </p>
+                  )}
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="priceHt">
+                      {formData.billByHour ? 'Prix HT par heure *' : 'Prix HT (forfait) *'}
+                    </Label>
+                    <Input
+                      id="priceHt"
+                      type="number"
+                      step="0.01"
+                      value={formData.priceHt ?? ''}
+                      onChange={(e) => setFormData({ ...formData, priceHt: parseFloat(e.target.value) || 0 })}
+                      placeholder={formData.billByHour ? 'Ex: 85' : 'Ex: 500'}
+                      className="bg-background"
+                    />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="billingFrequency">Régularité (Dashboard)</Label>
+                    <Select
+                      value={formData.billingFrequency || 'ponctuel'}
+                      onValueChange={(value) => setFormData({ ...formData, billingFrequency: value as 'annuel' | 'mensuel' | 'ponctuel' })}
+                    >
+                      <SelectTrigger aria-label="Régularité de facturation" className="bg-background">
+                        <SelectValue placeholder="Pour le dashboard" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="ponctuel">Ponctuel</SelectItem>
+                        <SelectItem value="mensuel">Mensuel (x12)</SelectItem>
+                        <SelectItem value="annuel">Annuel</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </div>
             </div>
-            {formData.billByHour && (
-              <p className="text-sm text-muted-foreground bg-muted/50 rounded-md px-3 py-2">
-                Le <strong>nombre d&apos;heures</strong> se saisit lors de l&apos;enregistrement d&apos;une vente (page <strong>Ventes</strong>) : choisissez ce service puis renseignez le champ &quot;Nombre d&apos;heures&quot;.
-              </p>
-            )}
-            
-            <div>
-              <Label htmlFor="priceHt">
-                {formData.billByHour ? 'Prix HT par heure *' : 'Prix HT (forfait) *'}
-              </Label>
-              <Input
-                id="priceHt"
-                type="number"
-                step="0.01"
-                value={formData.priceHt ?? ''}
-                onChange={(e) => setFormData({ ...formData, priceHt: parseFloat(e.target.value) || 0 })}
-                placeholder={formData.billByHour ? 'Ex: 85' : 'Ex: 500'}
-              />
-            </div>
-            
-            <div>
-              <Label htmlFor="type">Type</Label>
-              <Select
-                value={formData.type || 'service'}
-                onValueChange={(value) => setFormData({ ...formData, type: value as 'service' | 'produit' })}
-              >
-                <SelectTrigger aria-label="Type d'article">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="service">Service</SelectItem>
-                  <SelectItem value="produit">Produit</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            
-            <div>
-              <Label htmlFor="billingFrequency">Régularité de facturation</Label>
-              <Select
-                value={formData.billingFrequency || 'ponctuel'}
-                onValueChange={(value) => setFormData({ ...formData, billingFrequency: value as 'annuel' | 'mensuel' | 'ponctuel' })}
-              >
-                <SelectTrigger aria-label="Régularité de facturation">
-                  <SelectValue placeholder="Pour le dashboard (CA annualisé)" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ponctuel">Ponctuel</SelectItem>
-                  <SelectItem value="mensuel">Mensuel</SelectItem>
-                  <SelectItem value="annuel">Annuel</SelectItem>
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-foreground/70 mt-1">
-                Annuel = montant pris en compte pour l&apos;année (ex. hébergement). Mensuel = équivalent ×12 sur l&apos;année.
-              </p>
-            </div>
-            
-            {saveError && (
-              <p className="text-sm text-destructive bg-destructive/10 rounded-md px-3 py-2">
-                {saveError}
-              </p>
-            )}
-            <div className="flex justify-end space-x-2">
+          </div>
+          
+            <div className="flex justify-end space-x-2 pt-2">
               <Button variant="outline" type="button" onClick={() => { setIsDialogOpen(false); setSaveError(null) }}>
                 Annuler
               </Button>
@@ -496,7 +507,6 @@ export function ArticlesContent() {
                 {editingArticle ? 'Modifier' : 'Créer'}
               </Button>
             </div>
-          </div>
         </DialogContent>
       </Dialog>
 

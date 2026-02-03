@@ -12,7 +12,7 @@ import {
   getSortedRowModel,
   useReactTable,
 } from '@tanstack/react-table'
-import { ArrowUpDown, ChevronDown, MoreHorizontal } from 'lucide-react'
+import { ArrowUpDown, ChevronDown, MoreHorizontal, Inbox } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -36,34 +36,73 @@ import { electronFetch } from '@/lib/electron-api'
 import { toast } from 'sonner'
 import { mutate } from 'swr'
 import { SWR_KEYS } from '@/lib/swr-fetchers'
+import { formatTableDate } from '@/lib/utils'
 
 export type RecentSale = {
   id: string
   client: string
+  service: string
   amount: number
   status: string
   date: string
   frequency: string
 }
 
-const updateStatus = async (invoiceNo: string, status: string) => {
+const updateStatus = async (invoiceNo: string, newStatus: string) => {
+  type SalesCache = { sales?: { invoiceNo: string; status?: string; [k: string]: unknown }[]; pagination?: unknown } | undefined
+  let previousSales: SalesCache
+  let previousSalesList: SalesCache
+
+  // Mise à jour optimiste immédiate (UI réactive avant la réponse API)
+  mutate(
+    SWR_KEYS.sales,
+    (current: SalesCache) => {
+      previousSales = current
+      if (!current?.sales) return current
+      return {
+        ...current,
+        sales: current.sales.map((s) =>
+          s.invoiceNo === invoiceNo ? { ...s, status: newStatus } : s
+        ),
+      }
+    },
+    { revalidate: false }
+  )
+  mutate(
+    SWR_KEYS.salesList,
+    (current: SalesCache) => {
+      previousSalesList = current
+      if (!current?.sales) return current
+      return {
+        ...current,
+        sales: current.sales.map((s) =>
+          s.invoiceNo === invoiceNo ? { ...s, status: newStatus } : s
+        ),
+      }
+    },
+    { revalidate: false }
+  )
+
   try {
     const res = await electronFetch(`/api/sales/${encodeURIComponent(invoiceNo)}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status })
+      body: JSON.stringify({ status: newStatus }),
     })
     if (res.ok) {
       toast.success('Statut mis à jour')
-      // Invalidate sales cache to refresh dashboard and table
-      mutate(SWR_KEYS.sales)
-      // Also invalidate dashboard data if needed
-      mutate((key) => typeof key === 'string' && key.startsWith('dashboard-'), undefined, { revalidate: true })
+      mutate(SWR_KEYS.sales, undefined, { revalidate: true })
+      mutate(SWR_KEYS.salesList, undefined, { revalidate: true })
+      mutate((key) => typeof key === 'string' && key.startsWith('dashboard'), undefined, { revalidate: true })
     } else {
+      mutate(SWR_KEYS.sales, previousSales!, { revalidate: false })
+      mutate(SWR_KEYS.salesList, previousSalesList!, { revalidate: false })
       toast.error('Erreur lors de la mise à jour')
     }
   } catch (e) {
     console.error(e)
+    mutate(SWR_KEYS.sales, previousSales!, { revalidate: false })
+    mutate(SWR_KEYS.salesList, previousSalesList!, { revalidate: false })
     toast.error('Erreur réseau')
   }
 }
@@ -88,9 +127,14 @@ const columns: ColumnDef<RecentSale>[] = [
     cell: ({ row }) => <div>{row.getValue('client')}</div>,
   },
   {
+    accessorKey: 'service',
+    header: 'Service',
+    cell: ({ row }) => <div>{row.getValue('service') ?? '—'}</div>,
+  },
+  {
     accessorKey: 'date',
     header: 'Date',
-    cell: ({ row }) => <div>{row.getValue('date')}</div>,
+    cell: ({ row }) => <div>{formatTableDate(row.getValue('date') as string)}</div>,
   },
   {
     accessorKey: 'frequency',
@@ -111,7 +155,12 @@ const columns: ColumnDef<RecentSale>[] = [
                 ? 'destructive'
                 : 'secondary'
           }
+          className="gap-2"
         >
+          <span className="relative flex h-2 w-2">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-current opacity-75"></span>
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-current"></span>
+          </span>
           {status}
         </Badge>
       )
@@ -236,8 +285,11 @@ export function DashboardRecentSalesTable({ data }: { data: RecentSale[] }) {
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={columns.length} className="h-24 text-center">
-                  Aucun résultat.
+                <TableCell colSpan={columns.length} className="py-12 text-center">
+                  <div className="flex flex-col items-center gap-2">
+                    <Inbox className="h-8 w-8 text-muted-foreground" aria-hidden />
+                    <span className="text-sm text-muted-foreground">Aucun résultat.</span>
+                  </div>
                 </TableCell>
               </TableRow>
             )}

@@ -1,28 +1,11 @@
-import { Suspense } from 'react'
-import { SettingsContent } from './settings-content'
-import { Skeleton } from '@/components/ui/skeleton'
+import dynamic from 'next/dynamic'
+import SettingsLoading from './loading'
 
-function SettingsSkeleton() {
-  return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <Skeleton className="h-9 w-48" />
-      </div>
-      <div className="grid gap-6 md:grid-cols-2">
-        {Array.from({ length: 4 }).map((_, i) => (
-          <Skeleton key={i} className="h-64 rounded-lg" />
-        ))}
-      </div>
-    </div>
-  )
-}
+const SettingsContent = dynamic(
+  () => import('./settings-content').then((m) => ({ default: m.SettingsContent })),
+  { loading: () => <SettingsLoading /> }
+)
 
 export default function SettingsPage() {
-  return (
-    <>
-      <Suspense fallback={<SettingsSkeleton />}>
-        <SettingsContent />
-      </Suspense>
-    </>
-  )
+  return <SettingsContent />
 }

@@ -12,8 +12,10 @@ import { useVirtualizer } from '@tanstack/react-virtual'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { ChevronLeft, ChevronRight, Search, Download, Upload, Plus, Edit, Trash2, FileText, Receipt, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Search, Download, Upload, Plus, Edit, Trash2, FileText, Receipt, ArrowUp, ArrowDown, ArrowUpDown, Inbox } from 'lucide-react'
+import { formatTableDate } from '@/lib/utils'
 import { useState, useMemo } from 'react'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 
 const ROW_HEIGHT = 48
 const VIRTUALIZE_THRESHOLD = 200
@@ -47,6 +49,8 @@ interface DataTableProps<T extends Record<string, unknown>> {
   emptyMessage?: string
   /** Active la virtualisation pour les listes > ~200 lignes (scroll fluide). */
   virtualized?: boolean
+  /** Tri initial (ex. { field: 'saleDate', direction: 'desc' }). */
+  defaultSort?: { field: keyof T; direction: 'asc' | 'desc' }
   /** Contenu additionnel dans la barre d’outils (ex. sélecteur de colonnes). */
   toolbarExtra?: React.ReactNode
   className?: string
@@ -68,13 +72,14 @@ export function DataTable<T extends Record<string, unknown>>({
   onGenerateInvoice,
   emptyMessage,
   virtualized = false,
+  defaultSort,
   toolbarExtra,
   className
 }: DataTableProps<T>) {
   const [searchTerm, setSearchTerm] = useState("")
   const [currentPage, setCurrentPage] = useState(1)
-  const [sortField, setSortField] = useState<keyof T | null>(null)
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
+  const [sortField, setSortField] = useState<keyof T | null>(defaultSort?.field ?? null)
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>(defaultSort?.direction ?? 'asc')
   const scrollContainerRef = useRef<HTMLDivElement>(null)
 
   const filteredData = useMemo(() => {
@@ -171,11 +176,14 @@ export function DataTable<T extends Record<string, unknown>>({
       }).format(value)
     }
     
-    // Format date
+    // Format date (ex. 2026-avr-01)
     if (value instanceof Date) {
-      return value.toLocaleDateString('fr-FR')
+      return formatTableDate(value)
     }
-    
+    if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}/.test(value)) {
+      return formatTableDate(value)
+    }
+
     return String(value)
   }
 
@@ -282,9 +290,12 @@ export function DataTable<T extends Record<string, unknown>>({
           >
             {paginatedData.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={columns.length + (onEdit || onDelete || onGenerateQuote || onGenerateInvoice ? 1 : 0)} className="text-center py-10">
-                  <div className="flex flex-col items-center gap-3">
-                    <p className="text-muted-foreground">{emptyMessage ?? 'Aucune donnée'}</p>
+                <TableCell colSpan={columns.length + (onEdit || onDelete || onGenerateQuote || onGenerateInvoice ? 1 : 0)} className="text-center py-12">
+                  <div className="flex flex-col items-center gap-4 animate-fade-in">
+                    <div className="rounded-full bg-muted/50 p-4">
+                      <Inbox className="h-8 w-8 text-muted-foreground" aria-hidden />
+                    </div>
+                    <p className="text-muted-foreground text-sm">{emptyMessage ?? 'Aucune donnée'}</p>
                     {onAdd && (
                       <Button size="sm" onClick={onAdd}>
                         <Plus className="h-4 w-4 mr-2" />
@@ -322,52 +333,68 @@ export function DataTable<T extends Record<string, unknown>>({
                         <TableCell className="text-center">
                           <div className="flex items-center justify-center space-x-1">
                             {onGenerateQuote && (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => onGenerateQuote(row)}
-                                title="Générer Devis PDF"
-                                aria-label="Générer devis PDF"
-                                className="h-8 w-8 p-0 hover:bg-green-50 hover:border-green-300 transition-colors"
-                              >
-                                <FileText className="h-4 w-4 text-green-600" aria-hidden />
-                              </Button>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => onGenerateQuote(row)}
+                                    className="h-8 w-8 text-green-600 hover:text-green-700 hover:bg-green-500/10"
+                                  >
+                                    <FileText className="h-4 w-4" />
+                                    <span className="sr-only">Générer Devis</span>
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Générer Devis</TooltipContent>
+                              </Tooltip>
                             )}
                             {onGenerateInvoice && (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => onGenerateInvoice(row)}
-                                title="Générer Facture PDF"
-                                aria-label="Générer facture PDF"
-                                className="h-8 w-8 p-0 hover:bg-purple-50 hover:border-purple-300 transition-colors"
-                              >
-                                <Receipt className="h-4 w-4 text-purple-600" aria-hidden />
-                              </Button>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => onGenerateInvoice(row)}
+                                    className="h-8 w-8 text-purple-600 hover:text-purple-700 hover:bg-purple-500/10"
+                                  >
+                                    <Receipt className="h-4 w-4" />
+                                    <span className="sr-only">Générer Facture</span>
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Générer Facture</TooltipContent>
+                              </Tooltip>
                             )}
                             {onEdit && (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => onEdit(row)}
-                                title="Modifier"
-                                aria-label="Modifier"
-                                className="h-8 w-8 p-0 hover:bg-blue-50 hover:border-blue-300 transition-colors"
-                              >
-                                <Edit className="h-4 w-4 text-blue-600" aria-hidden />
-                              </Button>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => onEdit(row)}
+                                    className="h-8 w-8 text-primary hover:text-primary hover:bg-primary/10"
+                                  >
+                                    <Edit className="h-4 w-4" />
+                                    <span className="sr-only">Modifier</span>
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Modifier</TooltipContent>
+                              </Tooltip>
                             )}
                             {onDelete && (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => onDelete(row)}
-                                title="Supprimer"
-                                aria-label="Supprimer"
-                                className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50 hover:border-red-300 transition-colors"
-                              >
-                                <Trash2 className="h-4 w-4" aria-hidden />
-                              </Button>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => onDelete(row)}
+                                    className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                    <span className="sr-only">Supprimer</span>
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Supprimer</TooltipContent>
+                              </Tooltip>
                             )}
                           </div>
                         </TableCell>
@@ -378,7 +405,10 @@ export function DataTable<T extends Record<string, unknown>>({
               </>
             ) : (
               paginatedData.map((row, index) => (
-                <TableRow key={index}>
+                <TableRow
+                  key={index}
+                  className=""
+                >
                   {columns.map((column) => (
                     <TableCell key={String(column.key)} className={column.className}>
                       {formatValue(row[column.key], column, row)}
@@ -388,52 +418,68 @@ export function DataTable<T extends Record<string, unknown>>({
                     <TableCell className="text-center">
                       <div className="flex items-center justify-center space-x-1">
                         {onGenerateQuote && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => onGenerateQuote(row)}
-                            title="Générer Devis PDF"
-                            aria-label="Générer devis PDF"
-                            className="h-8 w-8 p-0 hover:bg-green-50 hover:border-green-300 transition-colors"
-                          >
-                            <FileText className="h-4 w-4 text-green-600" aria-hidden />
-                          </Button>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => onGenerateQuote(row)}
+                                className="h-8 w-8 text-green-600 hover:text-green-700 hover:bg-green-500/10"
+                              >
+                                <FileText className="h-4 w-4" />
+                                <span className="sr-only">Générer Devis</span>
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Générer Devis</TooltipContent>
+                          </Tooltip>
                         )}
                         {onGenerateInvoice && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => onGenerateInvoice(row)}
-                            title="Générer Facture PDF"
-                            aria-label="Générer facture PDF"
-                            className="h-8 w-8 p-0 hover:bg-purple-50 hover:border-purple-300 transition-colors"
-                          >
-                            <Receipt className="h-4 w-4 text-purple-600" aria-hidden />
-                          </Button>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => onGenerateInvoice(row)}
+                                className="h-8 w-8 text-purple-600 hover:text-purple-700 hover:bg-purple-500/10"
+                              >
+                                <Receipt className="h-4 w-4" />
+                                <span className="sr-only">Générer Facture</span>
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Générer Facture</TooltipContent>
+                          </Tooltip>
                         )}
                         {onEdit && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => onEdit(row)}
-                            title="Modifier"
-                            aria-label="Modifier"
-                            className="h-8 w-8 p-0 hover:bg-blue-50 hover:border-blue-300 transition-colors"
-                          >
-                            <Edit className="h-4 w-4 text-blue-600" aria-hidden />
-                          </Button>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => onEdit(row)}
+                                className="h-8 w-8 text-primary hover:text-primary hover:bg-primary/10"
+                              >
+                                <Edit className="h-4 w-4" />
+                                <span className="sr-only">Modifier</span>
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Modifier</TooltipContent>
+                          </Tooltip>
                         )}
                         {onDelete && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => onDelete(row)}
-                            title="Supprimer"
-                            aria-label="Supprimer"
-                            className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50 hover:border-red-300 transition-colors"
-                          >
-                            <Trash2 className="h-4 w-4" aria-hidden />
-                          </Button>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => onDelete(row)}
+                                className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                                <span className="sr-only">Supprimer</span>
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Supprimer</TooltipContent>
+                          </Tooltip>
                         )}
                       </div>
                     </TableCell>

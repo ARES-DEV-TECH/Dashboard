@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Columns3 } from 'lucide-react'
+import { Columns3, User, Building2 } from 'lucide-react'
 import { electronFetch } from '@/lib/electron-api'
 import { toast } from 'sonner'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -18,6 +18,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Client } from '@/lib/validations'
 import { generateCSV, downloadCSV } from '@/lib/csv'
 import { SWR_KEYS, fetchClients } from '@/lib/swr-fetchers'
+import { SWR_LIST_OPTIONS } from '@/lib/swr-config'
 import { getInitials } from '@/lib/utils'
 
 const CLIENTS_COLUMNS_STORAGE_KEY = 'clients-table-columns'
@@ -32,10 +33,7 @@ const DEFAULT_CLIENTS_COLUMN_VISIBILITY: Record<string, boolean> = {
 }
 
 export function ClientsContent() {
-  const { data: clients = [], error, isLoading, mutate } = useSWR<Client[]>(SWR_KEYS.clients, fetchClients, {
-    revalidateOnFocus: false,
-    dedupingInterval: 10000,
-  })
+  const { data: clients = [], error, isLoading, mutate } = useSWR<Client[]>(SWR_KEYS.clients, fetchClients, SWR_LIST_OPTIONS)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingClient, setEditingClient] = useState<Client | null>(null)
   const [formData, setFormData] = useState<Partial<Client>>({})
@@ -361,69 +359,94 @@ export function ClientsContent() {
           </DialogHeader>
           
           <form onSubmit={(e) => { e.preventDefault(); handleSave() }} className="space-y-6 py-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-              <div className="space-y-2">
-                <Label htmlFor="firstName">Prénom *</Label>
-                <Input
-                  id="firstName"
-                  value={formData.firstName || ''}
-                  onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
-                  placeholder="Prénom"
-                  autoFocus
-                />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Colonne Gauche : Identité */}
+              <div className="space-y-6">
+                <div className="bg-muted/30 p-4 rounded-lg border space-y-4 h-full">
+                  <h3 className="font-medium text-sm flex items-center gap-2 text-foreground/80">
+                    <User className="size-4" /> Identité
+                  </h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="firstName">Prénom *</Label>
+                      <Input
+                        id="firstName"
+                        value={formData.firstName || ''}
+                        onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
+                        placeholder="Prénom"
+                        autoFocus
+                        className="bg-background"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="lastName">Nom *</Label>
+                      <Input
+                        id="lastName"
+                        value={formData.lastName || ''}
+                        onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
+                        placeholder="Nom"
+                        className="bg-background"
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="email">Email</Label>
+                    <Input
+                      id="email"
+                      type="email"
+                      value={formData.email || ''}
+                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                      placeholder="email@exemple.com"
+                      className="bg-background"
+                    />
+                  </div>
+                </div>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="lastName">Nom *</Label>
-                <Input
-                  id="lastName"
-                  value={formData.lastName || ''}
-                  onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
-                  placeholder="Nom"
-                />
+
+              {/* Colonne Droite : Coordonnées */}
+              <div className="space-y-6">
+                <div className="bg-muted/30 p-4 rounded-lg border space-y-4 h-full">
+                  <h3 className="font-medium text-sm flex items-center gap-2 text-foreground/80">
+                    <Building2 className="size-4" /> Coordonnées
+                  </h3>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="company">Entreprise</Label>
+                    <Input
+                      id="company"
+                      value={formData.company || ''}
+                      onChange={(e) => setFormData({ ...formData, company: e.target.value })}
+                      placeholder="Nom de l'entreprise"
+                      className="bg-background"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="phone">Téléphone</Label>
+                      <Input
+                        id="phone"
+                        value={formData.phone || ''}
+                        onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                        placeholder="06 12 34 56 78"
+                        className="bg-background"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="website">Site web</Label>
+                      <Input
+                        id="website"
+                        type="url"
+                        value={formData.website || ''}
+                        onChange={(e) => setFormData({ ...formData, website: e.target.value })}
+                        placeholder="https://..."
+                        className="bg-background"
+                      />
+                    </div>
+                  </div>
+                </div>
               </div>
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                value={formData.email || ''}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                placeholder="email@exemple.com"
-              />
-            </div>
-            
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-              <div className="space-y-2">
-                <Label htmlFor="phone">Téléphone</Label>
-                <Input
-                  id="phone"
-                  value={formData.phone || ''}
-                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                  placeholder="06 12 34 56 78"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="company">Entreprise</Label>
-                <Input
-                  id="company"
-                  value={formData.company || ''}
-                  onChange={(e) => setFormData({ ...formData, company: e.target.value })}
-                  placeholder="Nom de l'entreprise"
-                />
-              </div>
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="website">Site web</Label>
-              <Input
-                id="website"
-                type="url"
-                value={formData.website || ''}
-                onChange={(e) => setFormData({ ...formData, website: e.target.value })}
-                placeholder="https://www.exemple.com"
-              />
             </div>
 
             {saveError && (
