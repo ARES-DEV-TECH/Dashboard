@@ -4,6 +4,8 @@ import { AuthProvider } from '@/components/auth-provider'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { Toaster } from '@/components/toaster'
 import { NavigationProgress } from '@/components/NavigationProgress'
+import { Analytics } from '@vercel/analytics/react'
+import { SpeedInsights } from '@vercel/speed-insights/next'
 
 export const metadata: Metadata = {
   title: "ARES Dashboard - Pilotage d'entreprise",
@@ -25,6 +27,8 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
           <AppLayout>{children}</AppLayout>
           <Toaster />
         </AuthProvider>
+        <Analytics />
+        <SpeedInsights />
       </body>
     </html>
   )

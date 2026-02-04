@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useMemo } from 'react'
 import useSWR from 'swr'
 import { DataTable, Column } from '@/components/ui/data-table'
 import { Button } from '@/components/ui/button'
@@ -21,6 +21,9 @@ import { generateCSV, downloadCSV } from '@/lib/csv'
 import { SWR_KEYS, fetchClients } from '@/lib/swr-fetchers'
 import { SWR_LIST_OPTIONS } from '@/lib/swr-config'
 import { getInitials } from '@/lib/utils'
+import { useCrudList } from '@/hooks/use-crud-list'
+import { useColumnVisibility } from '@/hooks/use-column-visibility'
+import { handleApiError } from '@/lib/error-handler'
 
 const CLIENTS_COLUMNS_STORAGE_KEY = 'clients-table-columns'
 const DEFAULT_CLIENTS_COLUMN_VISIBILITY: Record<string, boolean> = {
@@ -35,17 +38,27 @@ const DEFAULT_CLIENTS_COLUMN_VISIBILITY: Record<string, boolean> = {
 
 export function ClientsContent() {
   const { data: clients = [], error, isLoading, mutate } = useSWR<Client[]>(SWR_KEYS.clients, fetchClients, SWR_LIST_OPTIONS)
-  const [isDialogOpen, setIsDialogOpen] = useState(false)
-  const [editingClient, setEditingClient] = useState<Client | null>(null)
   const [formData, setFormData] = useState<Partial<Client>>({})
   const [saveError, setSaveError] = useState<string | null>(null)
 
-  // States for deletion confirmation
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
-  const [clientToDelete, setClientToDelete] = useState<Client | null>(null)
-  const [isDeleting, setIsDeleting] = useState(false)
-
   const loading = isLoading
+
+  // Use new reusable hooks
+  const crud = useCrudList<Client>({
+    onAdd: () => {
+      setSaveError(null)
+      setFormData({})
+    },
+    onEdit: (client) => {
+      setSaveError(null)
+      setFormData(client)
+    },
+  })
+
+  const { columnVisibility, toggleColumn } = useColumnVisibility(
+    CLIENTS_COLUMNS_STORAGE_KEY,
+    DEFAULT_CLIENTS_COLUMN_VISIBILITY
+  )
 
   const handleSave = async () => {
     setSaveError(null)
@@ -53,15 +66,15 @@ export function ClientsContent() {
       setSaveError('Le prénom et le nom sont requis.')
       return
     }
-    const url = editingClient?.clientName
-      ? `/api/clients/${encodeURIComponent(editingClient.clientName)}`
+    const url = crud.editingItem?.clientName
+      ? `/api/clients/${encodeURIComponent(crud.editingItem.clientName)}`
       : '/api/clients'
-    const method = editingClient ? 'PUT' : 'POST'
+    const method = crud.editingItem ? 'PUT' : 'POST'
     const previousClients = [...clients]
 
-    if (editingClient) {
+    if (crud.editingItem) {
       const optimistic = clients.map(c =>
-        c.clientName === editingClient.clientName
+        c.clientName === crud.editingItem!.clientName
           ? { ...c, ...formData, clientName: `${formData.firstName} ${formData.lastName}`.trim() }
           : c
       )
@@ -84,9 +97,9 @@ export function ClientsContent() {
       if (response.ok) {
         const updatedClient = data as Client | undefined
         if (updatedClient) {
-          if (editingClient) {
+          if (crud.editingItem) {
             const next = clients.map((c) =>
-              c.clientName === editingClient.clientName ? { ...updatedClient, clientName: updatedClient.clientName ?? `${updatedClient.firstName} ${updatedClient.lastName}`.trim() } : c
+              c.clientName === crud.editingItem!.clientName ? { ...updatedClient, clientName: updatedClient.clientName ?? `${updatedClient.firstName} ${updatedClient.lastName}`.trim() } : c
             )
             mutate(next, { revalidate: false })
           } else {
@@ -96,11 +109,10 @@ export function ClientsContent() {
         } else {
           await mutate()
         }
-        setIsDialogOpen(false)
-        setEditingClient(null)
+        crud.closeDialog()
         setFormData({})
         setSaveError(null)
-        toast.success('Clients', { description: editingClient ? 'Client mis à jour.' : 'Client créé.' })
+        toast.success('Clients', { description: crud.editingItem ? 'Client mis à jour.' : 'Client créé.' })
       } else {
         mutate(previousClients, { revalidate: false })
         const detailsStr = typeof data?.details === 'string'
@@ -113,34 +125,21 @@ export function ClientsContent() {
         toast.error('Clients', { description: msg })
       }
     } catch (error) {
-      console.error('Error saving client:', error)
       mutate(previousClients, { revalidate: false })
       setSaveError('Erreur réseau ou serveur. Réessayez.')
-      toast.error('Clients', { description: 'Erreur réseau ou serveur. Réessayez.' })
+      handleApiError(error, 'Sauvegarde client')
     }
   }
 
-  const handleEdit = (client: Client) => {
-    setSaveError(null)
-    setEditingClient(client)
-    setFormData(client)
-    setIsDialogOpen(true)
-  }
-
-  const handleDeleteClick = (client: Client) => {
-    setClientToDelete(client)
-    setIsDeleteDialogOpen(true)
-  }
-
   const handleConfirmDelete = async () => {
-    if (!clientToDelete) return
-    setIsDeleting(true)
+    if (!crud.itemToDelete) return
+    crud.setIsDeleting(true)
 
-    const clientId = clientToDelete.clientName ?? [clientToDelete.firstName, clientToDelete.lastName].filter(Boolean).join(' ') ?? ''
+    const clientId = crud.itemToDelete.clientName ?? [crud.itemToDelete.firstName, crud.itemToDelete.lastName].filter(Boolean).join(' ') ?? ''
     const previousClients = [...clients]
 
     // Optimistic UI update
-    mutate(clients.filter(c => c.clientName !== clientToDelete.clientName), { revalidate: false })
+    mutate(clients.filter(c => c.clientName !== crud.itemToDelete!.clientName), { revalidate: false })
 
     try {
       const response = await electronFetch(`/api/clients/${encodeURIComponent(clientId)}`, {
@@ -155,57 +154,16 @@ export function ClientsContent() {
         toast.error('Clients', { description: data?.error || 'Erreur lors de la suppression' })
       }
     } catch (error) {
-      console.error('Error deleting client:', error)
       mutate(previousClients, { revalidate: false })
-      toast.error('Clients', { description: 'Erreur lors de la suppression' })
+      handleApiError(error, 'Suppression client')
     } finally {
-      setIsDeleting(false)
-      setClientToDelete(null)
+      crud.closeDeleteDialog()
     }
   }
 
   const handleExport = () => {
     const csvContent = generateCSV(clients, ['firstName', 'lastName', 'clientName', 'email', 'phone', 'website', 'company'])
     downloadCSV(csvContent, `clients-${new Date().toISOString().split('T')[0]}.csv`)
-  }
-
-  const handleAdd = () => {
-    setSaveError(null)
-    setEditingClient(null)
-    setFormData({})
-    setIsDialogOpen(true)
-  }
-
-  useEffect(() => {
-    const handler = () => handleAdd()
-    window.addEventListener('shortcut-new', handler)
-    return () => window.removeEventListener('shortcut-new', handler)
-  }, [])
-
-  const [columnVisibility, setColumnVisibility] = useState<Record<string, boolean>>(() => {
-    if (typeof window === 'undefined') return { ...DEFAULT_CLIENTS_COLUMN_VISIBILITY }
-    try {
-      const stored = window.localStorage.getItem(CLIENTS_COLUMNS_STORAGE_KEY)
-      if (!stored) return { ...DEFAULT_CLIENTS_COLUMN_VISIBILITY }
-      const parsed = JSON.parse(stored) as Record<string, boolean>
-      return { ...DEFAULT_CLIENTS_COLUMN_VISIBILITY, ...parsed }
-    } catch {
-      return { ...DEFAULT_CLIENTS_COLUMN_VISIBILITY }
-    }
-  })
-
-  const saveColumnVisibility = (next: Record<string, boolean>) => {
-    setColumnVisibility(next)
-    try {
-      window.localStorage.setItem(CLIENTS_COLUMNS_STORAGE_KEY, JSON.stringify(next))
-    } catch { }
-  }
-
-  const toggleColumn = (key: string) => {
-    const visibleCount = Object.values(columnVisibility).filter(Boolean).length
-    const currentlyVisible = columnVisibility[key] !== false
-    if (currentlyVisible && visibleCount <= 1) return
-    saveColumnVisibility({ ...columnVisibility, [key]: !currentlyVisible })
   }
 
   const columns: Column<Client>[] = useMemo(
@@ -340,10 +298,10 @@ export function ClientsContent() {
             </div>
 
             <div className="flex flex-col gap-1 shrink-0">
-              <Button size="icon" variant="ghost" className="h-8 w-8 rounded-lg hover:bg-primary/10 hover:text-primary" onClick={() => handleEdit(client)}>
+              <Button size="icon" variant="ghost" className="h-8 w-8 rounded-lg hover:bg-primary/10 hover:text-primary" onClick={() => crud.handleEdit(client)}>
                 <Edit className="h-4 w-4" />
               </Button>
-              <Button size="icon" variant="ghost" className="h-8 w-8 rounded-lg text-destructive hover:bg-destructive/10" onClick={() => handleDeleteClick(client)}>
+              <Button size="icon" variant="ghost" className="h-8 w-8 rounded-lg text-destructive hover:bg-destructive/10" onClick={() => crud.handleDeleteClick(client)}>
                 <Trash2 className="h-4 w-4" />
               </Button>
             </div>
@@ -420,9 +378,9 @@ export function ClientsContent() {
         data={clients}
         columns={visibleColumns}
         toolbarExtra={columnsPopover}
-        onAdd={handleAdd}
-        onEdit={handleEdit}
-        onDelete={handleDeleteClick}
+        onAdd={crud.handleAdd}
+        onEdit={crud.handleEdit}
+        onDelete={crud.handleDeleteClick}
         onExport={handleExport}
         searchPlaceholder="Rechercher un client..."
         emptyMessage="Aucun client. Créez votre premier client."
@@ -432,9 +390,9 @@ export function ClientsContent() {
 
       {/* Add/Edit Client Dialog */}
       <ResponsiveDialog
-        open={isDialogOpen}
-        onOpenChange={setIsDialogOpen}
-        title={editingClient ? 'Modifier le client' : 'Nouveau client'}
+        open={crud.isDialogOpen}
+        onOpenChange={crud.setIsDialogOpen}
+        title={crud.editingItem ? 'Modifier le client' : 'Nouveau client'}
         className="sm:max-w-2xl"
       >
         <form onSubmit={(e) => { e.preventDefault(); handleSave() }} className="space-y-6 py-4">
@@ -534,23 +492,23 @@ export function ClientsContent() {
             </p>
           )}
           <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end sm:space-x-2 pt-4">
-            <Button variant="outline" type="button" onClick={() => { setIsDialogOpen(false); setSaveError(null) }}>
+            <Button variant="outline" type="button" onClick={() => { crud.closeDialog(); setSaveError(null) }}>
               Annuler
             </Button>
             <Button type="submit">
-              {editingClient ? 'Modifier' : 'Créer'}
+              {crud.editingItem ? 'Modifier' : 'Créer'}
             </Button>
           </div>
         </form>
       </ResponsiveDialog>
 
       <ConfirmDialog
-        isOpen={isDeleteDialogOpen}
-        onOpenChange={setIsDeleteDialogOpen}
+        isOpen={crud.isDeleteDialogOpen}
+        onOpenChange={crud.setIsDeleteDialogOpen}
         title="Supprimer le client"
-        description={`Êtes-vous sûr de vouloir supprimer le client "${[clientToDelete?.firstName, clientToDelete?.lastName].filter(Boolean).join(' ') || clientToDelete?.clientName || ''}" ? Cette action est irréversible.`}
+        description={`Êtes-vous sûr de vouloir supprimer le client "${[crud.itemToDelete?.firstName, crud.itemToDelete?.lastName].filter(Boolean).join(' ') || crud.itemToDelete?.clientName || ''}" ? Cette action est irréversible.`}
         onConfirm={handleConfirmDelete}
-        isLoading={isDeleting}
+        isLoading={crud.isDeleting}
       />
     </div>
   )

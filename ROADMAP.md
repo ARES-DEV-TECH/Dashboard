@@ -27,6 +27,7 @@ Pour chaque priorité à faire, la roadmap précise :
 | **Performance perçue** (SWR, prefetch) | ✅ Fait | — |
 | **Envoi d’emails** | ✅ Fait | Resend + SMTP |
 | **Devis / factures / paiements** | ⬜ À faire | Nomenclatures personnalisables, paiement en plusieurs fois |
+| **Facturation électronique (Légal)** | 🔴 **URGENT** | Conformité légale obligatoire sept. 2026/2027 |
 | **Connexion Google** | ⬜ À faire | Login via OAuth 2.0 |
 | **Calendrier / Agenda Google** | ⬜ À faire | Sync agenda Google |
 
@@ -70,6 +71,102 @@ Pour chaque priorité à faire, la roadmap précise :
     *   Passer les grilles de KPIs en 1 colonne (`grid-cols-1`).
     *   Ajuster la hauteur des graphiques Recharts.
     *   Masquer les légendes trop verbeuses ou les passer en dessous.
+
+
+---
+
+## Priorité 0.5 (URGENT) – Facturation électronique (Conformité légale)
+
+**Contexte légal** : Obligation légale en France pour toutes les entreprises assujetties à la TVA (B2B).
+
+**Échéances** :
+- **1er septembre 2026** : Réception obligatoire pour TOUTES les entreprises
+- **1er septembre 2027** : Émission obligatoire pour les TPE/PME
+
+**Objectif** : Permettre l'envoi légal des factures via une Plateforme de Dématérialisation Partenaire (PDP) tout en gardant le contrôle utilisateur sur la validation et le design.
+
+### Phase 1 : Système de statuts et workflow de validation
+
+**Ce qu'on veut** : L'utilisateur doit pouvoir créer, modifier et vérifier ses factures avant de les envoyer légalement.
+
+**Résultat attendu** :
+- Factures en mode "brouillon" modifiables à volonté
+- Prévisualisation PDF avant envoi
+- Validation finale avec confirmation
+- Verrouillage automatique après envoi légal (immuable)
+
+**Technique** :
+1. **Base de données** :
+   ```prisma
+   model Sale {
+     // Champs existants...
+     status String @default("DRAFT") // DRAFT, REVIEW, VALIDATED, SENT, PAID, CANCELLED
+     sentAt DateTime? // Date d'envoi légal
+     lockedAt DateTime? // Date de verrouillage
+     legalInvoiceId String? // ID de la facture sur la PDP
+   }
+   ```
+
+2. **UI - Statuts visuels** :
+   - Badge de statut dans la liste des ventes
+   - Actions conditionnelles (Modifier visible uniquement si `status !== "SENT"`)
+   - Bouton "Valider et envoyer" avec modal de confirmation
+
+3. **Workflow** :
+   ```
+   DRAFT → REVIEW → VALIDATED → SENT (immuable)
+                                   ↓
+                              PAID ou CANCELLED
+   ```
+
+### Phase 2 : Intégration PDP (Plateforme de Dématérialisation)
+
+**Ce qu'on veut** : Envoi automatique vers la plateforme légale lors de la validation.
+
+**Résultat attendu** :
+- Un seul clic "Valider et envoyer" déclenche 2 envois :
+  1. **Envoi légal** via PDP (format structuré XML/JSON)
+  2. **Envoi email** au client (PDF avec branding)
+
+**Technique** :
+1. **Choix de la PDP** :
+   - Chorus Pro (gratuit, plateforme publique)
+   - Solutions privées (Pennylane, Sellsy, etc.)
+
+2. **API Route** : `/api/invoices/send-legal`
+   - Génération du PDF final
+   - Conversion en format structuré (Factur-X ou UBL)
+   - Envoi via API de la PDP
+   - Envoi email parallèle au client
+   - Mise à jour du statut → `SENT`
+
+3. **Configuration** :
+   - Page `/settings` : Paramètres PDP (API key, endpoint)
+   - Toggle "Envoi email au client" (activé par défaut)
+
+### Phase 3 : Réception de factures électroniques
+
+**Ce qu'on veut** : Recevoir et archiver les factures électroniques des fournisseurs (obligatoire dès sept. 2026).
+
+**Résultat attendu** :
+- Import automatique des factures reçues via PDP
+- Création automatique de charges dans le dashboard
+- Notification à l'utilisateur
+
+**Technique** :
+1. **Webhook** : Endpoint `/api/invoices/receive` pour réception PDP
+2. **Parsing** : Extraction des données (montant, fournisseur, date)
+3. **Création** : Nouvelle charge dans la base de données
+4. **Notification** : Toast + email à l'utilisateur
+
+### Phase 4 : Archivage et traçabilité
+
+**Ce qu'on veut** : Conservation légale des factures (10 ans minimum).
+
+**Technique** :
+- Stockage des PDFs et fichiers structurés (Supabase Storage)
+- Table `InvoiceArchive` avec métadonnées
+- Export pour contrôle fiscal
 
 ---
 

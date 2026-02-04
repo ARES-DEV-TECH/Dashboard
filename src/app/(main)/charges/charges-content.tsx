@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useMemo } from 'react'
 import useSWR from 'swr'
 import { DataTable, Column } from '@/components/ui/data-table'
 import { Button } from '@/components/ui/button'
@@ -12,7 +12,7 @@ import { Charge, Client } from '@/lib/validations'
 import { generateCSV, downloadCSV } from '@/lib/csv'
 import { electronFetch } from '@/lib/electron-api'
 import { toast } from 'sonner'
-import { safeErrorMessage, formatTableDate, cn } from '@/lib/utils'
+import { formatTableDate, cn } from '@/lib/utils'
 import { Skeleton } from '@/components/ui/skeleton'
 import { ChargeFormModal } from './components/ChargeFormModal'
 import { Card, CardContent } from '@/components/ui/card'
@@ -20,6 +20,9 @@ import { Edit, Trash2, MoreHorizontal, AlertTriangle } from 'lucide-react'
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import { SWR_KEYS, fetchCharges, fetchArticles, fetchClients } from '@/lib/swr-fetchers'
 import { SWR_LIST_OPTIONS } from '@/lib/swr-config'
+import { useCrudList } from '@/hooks/use-crud-list'
+import { useColumnVisibility } from '@/hooks/use-column-visibility'
+import { handleApiError } from '@/lib/error-handler'
 
 const CHARGES_COLUMNS_STORAGE_KEY = 'charges-table-columns'
 const DEFAULT_CHARGES_COLUMN_VISIBILITY: Record<string, boolean> = {
@@ -41,8 +44,6 @@ export function ChargesContent() {
   const charges = chargesData?.charges ?? []
   const loading = chargesLoading || articlesLoading || clientsLoading
 
-  const [isDialogOpen, setIsDialogOpen] = useState(false)
-  const [editingCharge, setEditingCharge] = useState<Charge | null>(null)
   const [formData, setFormData] = useState({
     expenseDate: '',
     category: '',
@@ -58,10 +59,13 @@ export function ChargesContent() {
     year: new Date().getFullYear(),
   })
 
-  // States for deletion confirmation
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
-  const [chargeToDelete, setChargeToDelete] = useState<Charge | null>(null)
-  const [isDeleting, setIsDeleting] = useState(false)
+  // Use new reusable hooks
+  const crud = useCrudList<Charge>()
+
+  const { columnVisibility, toggleColumn } = useColumnVisibility(
+    CHARGES_COLUMNS_STORAGE_KEY,
+    DEFAULT_CHARGES_COLUMN_VISIBILITY
+  )
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
