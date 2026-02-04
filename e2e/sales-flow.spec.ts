@@ -5,7 +5,7 @@ test.describe('Flux Business Complet', () => {
   const clientLastName = `E2E-${timestamp}`
   const clientNameFull = `Test ${clientLastName}`
   const serviceName = `Service E2E ${timestamp}`
-  
+
   test.beforeEach(async ({ page }) => {
     await page.goto('/login')
     await page.getByLabel(/email/i).fill('seed@example.com')
@@ -18,41 +18,41 @@ test.describe('Flux Business Complet', () => {
   test('Cycle complet : Client -> Article -> Vente', async ({ page }) => {
     // 1. Créer Client
     console.log('Création du client...')
-    await page.getByRole('link', { name: 'Clients' }).click()
+    await page.locator('[data-sidebar="sidebar"]').getByRole('link', { name: 'Clients' }).click()
     await expect(page).toHaveURL('/clients')
-    
+
     await page.getByRole('button', { name: 'Nouveau' }).click()
     await expect(page.getByText('Nouveau client')).toBeVisible()
-    
+
     await page.locator('#firstName').fill('Test')
     await page.locator('#lastName').fill(clientLastName)
     await page.getByRole('button', { name: 'Créer' }).click()
-    
+
     // Attendre le toast ou la fermeture du dialog
     await expect(page.getByText('Client créé')).toBeVisible()
-    
+
     // 2. Créer Article
     console.log('Création de l\'article...')
-    await page.getByRole('link', { name: 'Articles' }).click()
+    await page.locator('[data-sidebar="sidebar"]').getByRole('link', { name: 'Articles' }).click()
     await expect(page).toHaveURL('/articles')
-    
+
     await page.getByRole('button', { name: 'Nouveau' }).click()
     await expect(page.getByText('Nouvel article')).toBeVisible()
-    
+
     await page.locator('#serviceName').fill(serviceName)
     await page.locator('#priceHt').fill('1000')
     await page.getByRole('button', { name: 'Créer' }).click()
-    
+
     await expect(page.getByText('Article créé')).toBeVisible()
 
     // 3. Créer Vente
     console.log('Création de la vente...')
-    await page.getByRole('link', { name: 'Ventes' }).click()
+    await page.locator('[data-sidebar="sidebar"]').getByRole('link', { name: 'Ventes' }).click()
     await expect(page).toHaveURL('/sales')
-    
+
     await page.getByRole('button', { name: 'Nouveau' }).click()
     await expect(page.getByText('Nouvelle vente')).toBeVisible()
-    
+
     // Sélection Client (Select Shadcn)
     await page.locator('button[aria-label="Sélectionner un client"]').click()
     // Attendre que la liste s'ouvre et cliquer sur le client
@@ -60,16 +60,15 @@ test.describe('Flux Business Complet', () => {
     await page.getByRole('option').filter({ hasText: clientLastName }).click()
 
     // Sélection Service
-    await page.locator('button[aria-label="Sélectionner un service"]').click()
+    await page.locator('button[aria-label="Sélectionner un service"]').first().click()
     await page.getByRole('option').filter({ hasText: serviceName }).click()
 
     // Vérifier que le prix s'est mis à jour (1000)
-    // Note: input type number peut retourner string "1000" ou "1000.00"
-    await expect(page.getByLabel('Prix unit. HT')).toHaveValue('1000')
+    await expect(page.locator('#price-0')).toHaveValue('1000')
 
     await page.getByRole('button', { name: 'Créer' }).click()
     await expect(page.getByText('Vente enregistrée')).toBeVisible()
-    
+
     // Attendre que le dialog soit fermé pour être sûr que la table visible est la bonne
     // ou cibler spécifiquement la table de données
     await expect(page.getByRole('dialog')).toBeHidden()

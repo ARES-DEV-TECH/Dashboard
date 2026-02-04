@@ -66,14 +66,6 @@ export async function PUT(
       }
     }
 
-    const existingSale = await prisma.sale.findUnique({
-      where: { userId_invoiceNo: { userId: user.id, invoiceNo } },
-      select: { userId: true },
-    })
-    if (!existingSale || existingSale.userId !== user.id) {
-      return apiError('Vente non trouvée', 404)
-    }
-
     // Taux TVA de l'utilisateur (en base)
     const tvaParam = await prisma.parametresEntreprise.findFirst({
       where: { userId: user.id, key: 'defaultTvaRate' },
@@ -81,18 +73,33 @@ export async function PUT(
     const tvaRate = tvaParam ? parseFloat(tvaParam.value) : 20
 
     // Calculate amounts
+    const items = validatedData.items || []
+    const useItems = items.length > 0
+
     const amounts = await calculateSaleAmounts(
-      validatedData.quantity,
-      validatedData.unitPriceHt,
+      useItems ? items : (validatedData.quantity || 1),
+      useItems ? undefined : (validatedData.unitPriceHt || 0),
       optionsTotal,
       tvaRate
     )
+
+    // Legacy fields handling
+    const serviceName = useItems
+      ? (items.length > 1 ? `${items[0].serviceName} (+${items.length - 1} autres)` : items[0].serviceName)
+      : (validatedData.serviceName || 'Service')
+
+    const quantity = useItems ? items.reduce((sum, i) => sum + (i.quantity || 0), 0) : (validatedData.quantity || 1)
+    const unitPriceHt = useItems ? (amounts.caHt / Math.max(1, quantity)) : (validatedData.unitPriceHt || 0)
 
     const sale = await prisma.sale.update({
       where: { userId_invoiceNo: { userId: user.id, invoiceNo } },
       data: {
         ...updateData,
         ...amounts,
+        serviceName,
+        quantity,
+        unitPriceHt,
+        items: useItems ? JSON.stringify(items) : null,
         year: new Date(validatedData.saleDate).getFullYear(),
       },
     })

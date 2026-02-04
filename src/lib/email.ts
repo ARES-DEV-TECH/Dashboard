@@ -30,7 +30,7 @@ async function sendViaResend(options: SendEmailOptions): Promise<boolean> {
   })
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
-    console.error('Resend error:', res.status, err)
+    console.error(`[Resend] Error ${res.status}:`, JSON.stringify(err, null, 2))
     return false
   }
   return true
@@ -65,7 +65,7 @@ async function sendViaSmtp(options: SendEmailOptions): Promise<boolean> {
     })
     return true
   } catch (err) {
-    console.error('SMTP error:', err)
+    console.error('[SMTP] Error sending email:', err)
     return false
   }
 }

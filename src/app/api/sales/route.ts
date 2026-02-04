@@ -25,17 +25,17 @@ export async function GET(request: NextRequest) {
     const userFilter = { userId: user.id }
     const where: Record<string, unknown> = search
       ? {
-          AND: [
-            userFilter,
-            {
-              OR: [
-                { invoiceNo: { contains: search } },
-                { clientName: { contains: search } },
-                { serviceName: { contains: search } },
-              ],
-            },
-          ],
-        }
+        AND: [
+          userFilter,
+          {
+            OR: [
+              { invoiceNo: { contains: search } },
+              { clientName: { contains: search } },
+              { serviceName: { contains: search } },
+            ],
+          },
+        ],
+      }
       : userFilter
 
     if (year) {
@@ -61,7 +61,7 @@ export async function GET(request: NextRequest) {
         pages: Math.ceil(total / limit),
       },
     }
-    
+
     return NextResponse.json(responseData, {
       headers: {
         'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
@@ -125,17 +125,32 @@ export async function POST(request: NextRequest) {
     const tvaRate = tvaParam ? parseFloat(tvaParam.value) : 20
 
     // Calculate amounts
+    const items = validatedData.items || []
+    const useItems = items.length > 0
+
     const amounts = await calculateSaleAmounts(
-      validatedData.quantity,
-      validatedData.unitPriceHt,
+      useItems ? items : (validatedData.quantity || 1),
+      useItems ? undefined : (validatedData.unitPriceHt || 0),
       optionsTotal,
       tvaRate
     )
+
+    // Legacy fields handling
+    const serviceName = useItems
+      ? (items.length > 1 ? `${items[0].serviceName} (+${items.length - 1} autres)` : items[0].serviceName)
+      : (validatedData.serviceName || 'Service')
+
+    const quantity = useItems ? items.reduce((sum, i) => sum + (i.quantity || 0), 0) : (validatedData.quantity || 1)
+    const unitPriceHt = useItems ? (amounts.caHt / Math.max(1, quantity)) : (validatedData.unitPriceHt || 0)
 
     const sale = await prisma.sale.create({
       data: {
         ...validatedData,
         ...amounts,
+        serviceName,
+        quantity,
+        unitPriceHt,
+        items: useItems ? JSON.stringify(items) : null,
         saleDate: new Date(validatedData.saleDate),
         year: new Date(validatedData.saleDate).getFullYear(),
         invoiceNo,
@@ -148,12 +163,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(sale, { status: 201 })
   } catch (error) {
     console.error('Error creating sale:', error)
-    
+
     // Gestion des erreurs de validation Zod
     if (error instanceof ZodError) {
       return NextResponse.json(
-        { 
-          error: 'Données invalides', 
+        {
+          error: 'Données invalides',
           details: error.issues.map(err => ({
             field: err.path.join('.'),
             message: err.message

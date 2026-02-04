@@ -12,12 +12,17 @@ import { AnalyticsClients } from './components/AnalyticsClients'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import AnalyticsLoading from './loading'
 
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { useIsMobile } from '@/hooks/use-mobile'
+
 export function AnalyticsContent() {
   const [dateRange, setDateRange] = useState<DateRange>(() => calculatePresetDates('thisMonth'))
   const { payload, isLoading, isValidating } = useAnalyticsData(dateRange)
+  const isMobile = useIsMobile()
+  const [activeTab, setActiveTab] = useState('services')
 
   return (
-    <div className="flex flex-1 flex-col gap-6 p-4 pt-0">
+    <div className="flex flex-1 flex-col gap-3 p-4 pt-0 sm:gap-6">
       <PresetHeader
         title="Analytics"
         description="Analyse détaillée de votre activité, services, charges et fiscalité."
@@ -37,12 +42,29 @@ export function AnalyticsContent() {
             <AnalyticsStats fiscalData={payload.fiscalData} />
 
             {/* Onglets pour les analyses détaillées */}
-            <Tabs defaultValue="services" className="space-y-4">
-              <TabsList>
-                <TabsTrigger value="services">Analyse Services</TabsTrigger>
-                <TabsTrigger value="charges">Analyse Charges</TabsTrigger>
-                <TabsTrigger value="clients">Clients & Revenus</TabsTrigger>
-              </TabsList>
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+              {isMobile ? (
+                <div className="w-full">
+                  <Select value={activeTab} onValueChange={setActiveTab}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Choisir une vue" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="services">Analyse Services</SelectItem>
+                      <SelectItem value="charges">Analyse Charges</SelectItem>
+                      <SelectItem value="clients">Clients & Revenus</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              ) : (
+                <div className="w-full overflow-x-auto pb-2 -mx-4 px-4 sm:mx-0 sm:px-0 sm:pb-0 no-scrollbar">
+                  <TabsList className="w-auto inline-flex justify-start h-auto p-1">
+                    <TabsTrigger value="services" className="py-2.5">Analyse Services</TabsTrigger>
+                    <TabsTrigger value="charges" className="py-2.5">Analyse Charges</TabsTrigger>
+                    <TabsTrigger value="clients" className="py-2.5">Clients & Revenus</TabsTrigger>
+                  </TabsList>
+                </div>
+              )}
 
               <TabsContent value="services" className="space-y-4">
                 <AnalyticsServices

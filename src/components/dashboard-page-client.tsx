@@ -38,6 +38,7 @@ export type DashboardData = {
     status: string
     date: string
     frequency: string
+    items?: any[]
   }[]
   servicesData: {
     serviceDistribution: ServiceDistributionItem[]

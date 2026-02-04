@@ -1,18 +1,29 @@
 import jsPDF from 'jspdf'
 import { electronFetch } from './electron-api'
 
+export interface SaleItem {
+  serviceName: string
+  description?: string
+  quantity: number
+  unitPriceHt: number
+  unitLabel?: string
+  options?: { name: string; priceHt: number }[]
+  optionsTotalHt?: number
+}
+
 export interface SaleData {
   invoiceNo: string
   saleDate: string
   clientName: string
-  serviceName: string
-  quantity: number
-  unitPriceHt: number
-  unitLabel?: string // "heure" | "forfait" pour affichage
+  serviceName: string // Used as a fallback/summary
+  quantity: number    // Used as a fallback/summary
+  unitPriceHt: number // Used as a fallback/summary
+  unitLabel?: string
   caHt: number
   tvaRate: number
   tvaAmount: number
   totalTtc: number
+  items?: string | SaleItem[] // JSON or Array
   client?: {
     email?: string
     website?: string
@@ -129,7 +140,7 @@ async function drawHeader(doc: jsPDF, companyInfo: CompanyInfo, documentType: st
   // Header background avec gradient effect
   doc.setFillColor(26, 26, 26) // #1A1A1A
   doc.rect(0, 0, 210, 50, 'F')
-  
+
   // Logo : logoBase64 (worker / pas de fetch) ou fetch depuis logoPath
   let logoBase64: string | undefined = companyInfo.logoBase64
   if (!logoBase64 && companyInfo.logoPath) {
@@ -173,12 +184,12 @@ async function drawHeader(doc: jsPDF, companyInfo: CompanyInfo, documentType: st
   doc.setFontSize(FONTS.title.size)
   doc.setFont('helvetica', 'bold')
   doc.text(documentType, SPACING.margin, 30)
-  
+
   // Ligne décorative
   doc.setDrawColor(102, 126, 234)
   doc.setLineWidth(3)
   doc.line(SPACING.margin, 35, 80, 35)
-  
+
   // Date du document
   doc.setTextColor(255, 255, 255)
   doc.setFontSize(FONTS.body.size)
@@ -188,20 +199,20 @@ async function drawHeader(doc: jsPDF, companyInfo: CompanyInfo, documentType: st
 
 async function drawCompanyInfo(doc: jsPDF, companyInfo: CompanyInfo, startY: number): Promise<number> {
   let currentY = startY
-  
+
   // Titre section
   doc.setTextColor(COLORS.text)
   doc.setFontSize(FONTS.header.size)
   doc.setFont('helvetica', 'bold')
   doc.text('INFORMATIONS ENTREPRISE', SPACING.margin, currentY)
-  
+
   // Ligne de séparation
   doc.setDrawColor(COLORS.secondary)
   doc.setLineWidth(1)
   doc.line(SPACING.margin, currentY + SPACING.titleUnderline, 190, currentY + SPACING.titleUnderline)
-  
+
   currentY += SPACING.line
-  
+
   // Informations entreprise dans un cadre (hauteur adaptée si SIRET présent)
   const hasSiret = !!companyInfo.siret?.trim()
   const boxHeight = hasSiret ? 42 : 35
@@ -210,17 +221,17 @@ async function drawCompanyInfo(doc: jsPDF, companyInfo: CompanyInfo, startY: num
   doc.setDrawColor(COLORS.border)
   doc.setLineWidth(1)
   doc.rect(SPACING.margin, currentY, 170, boxHeight)
-  
+
   // Contenu du cadre
   doc.setTextColor(COLORS.text)
   doc.setFontSize(FONTS.body.size)
   doc.setFont('helvetica', 'bold')
   doc.text(companyInfo.name, SPACING.margin + 5, currentY + 8)
-  
+
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(FONTS.small.size)
   doc.text(companyInfo.address, SPACING.margin + 5, currentY + 15)
-  
+
   if (companyInfo.phone) {
     doc.text(`Tél: ${companyInfo.phone}`, SPACING.margin + 5, currentY + 22)
   }
@@ -230,37 +241,37 @@ async function drawCompanyInfo(doc: jsPDF, companyInfo: CompanyInfo, startY: num
   if (hasSiret) {
     doc.text(`SIRET: ${companyInfo.siret!.replace(/(\d{3})(\d{3})(\d{3})(\d{5})/, '$1 $2 $3 $4')}`, SPACING.margin + 5, currentY + 36)
   }
-  
+
   return currentY + boxHeight
 }
 
 function drawClientInfo(doc: jsPDF, sale: SaleData, startY: number): number {
   let currentY = startY
-  
+
   // Titre section
   doc.setTextColor(COLORS.text)
   doc.setFontSize(FONTS.header.size)
   doc.setFont('helvetica', 'bold')
   doc.text('INFORMATIONS CLIENT', SPACING.margin, currentY)
-  
+
   // Ligne de séparation
   doc.setDrawColor(COLORS.secondary)
   doc.setLineWidth(1)
   doc.line(SPACING.margin, currentY + SPACING.titleUnderline, 190, currentY + SPACING.titleUnderline)
-  
+
   currentY += SPACING.line
-  
+
   // Informations client
   doc.setFontSize(FONTS.body.size)
   doc.setFont('helvetica', 'bold')
   doc.text(`Client: ${sale.clientName || 'Non défini'}`, SPACING.margin, currentY)
-  
+
   if (sale.client?.email) {
     currentY += SPACING.line
     doc.setFont('helvetica', 'normal')
     doc.text(`Email: ${sale.client.email}`, SPACING.margin, currentY)
   }
-  
+
   if (sale.client?.company) {
     currentY += SPACING.line
     doc.text(`Entreprise: ${sale.client.company}`, SPACING.margin, currentY)
@@ -269,72 +280,63 @@ function drawClientInfo(doc: jsPDF, sale: SaleData, startY: number): number {
     currentY += SPACING.line
     doc.text(`Site web: ${sale.client.website}`, SPACING.margin, currentY)
   }
-  
+
   return currentY
 }
 
 function drawQuoteDetails(doc: jsPDF, sale: SaleData, startY: number): number {
   let currentY = startY
-  
+
   // Titre section
   doc.setTextColor(COLORS.text)
   doc.setFontSize(FONTS.header.size)
   doc.setFont('helvetica', 'bold')
   doc.text('DÉTAILS DU DEVIS', SPACING.margin, currentY)
-  
+
   // Ligne de séparation
   doc.setDrawColor(COLORS.secondary)
   doc.setLineWidth(1)
   doc.line(SPACING.margin, currentY + SPACING.titleUnderline, 190, currentY + SPACING.titleUnderline)
-  
+
   currentY += SPACING.line
-  
+
   // Détails
   doc.setFontSize(FONTS.body.size)
   doc.setFont('helvetica', 'normal')
   doc.text(`Numéro de devis: ${sale.invoiceNo || 'Non défini'}`, SPACING.margin, currentY)
-  
+
   currentY += SPACING.line
   doc.text(`Date: ${sale.saleDate ? new Date(sale.saleDate).toLocaleDateString('fr-FR') : 'Non définie'}`, SPACING.margin, currentY)
-  
+
   currentY += SPACING.line
   doc.text(`Validité: 30 jours`, SPACING.margin, currentY)
-  
+
   return currentY
 }
 
 function drawServicesTable(doc: jsPDF, sale: SaleData, startY: number): number {
   let currentY = startY
-  
+
   // Titre section
   doc.setTextColor(COLORS.text)
   doc.setFontSize(FONTS.header.size)
   doc.setFont('helvetica', 'bold')
   doc.text('SERVICES', SPACING.margin, currentY)
-  
+
   // Ligne de séparation
   doc.setDrawColor(COLORS.secondary)
-  doc.setLineWidth(1)
   doc.line(SPACING.margin, currentY + SPACING.titleUnderline, 190, currentY + SPACING.titleUnderline)
-  
+
   currentY += SPACING.line
-  
-  // En-tête du tableau (bleu/violet foncé)
   const tableTop = currentY
-  // Largeurs total 170 pour ne pas dépasser le cadre (évite colonne Total coupée)
-  const colWidths = [70, 18, 28, 28, 26] // Description, Qté, Prix HT, TVA, Total
+  const colWidths = [70, 18, 28, 28, 26]
   const headerHeight = 12
-  
-  doc.setFillColor(76, 81, 191) // secondaryDark #4c51bf
+
+  doc.setFillColor(76, 81, 191)
   doc.rect(SPACING.margin, tableTop, 170, headerHeight, 'F')
-  doc.setDrawColor(102, 126, 234)
-  doc.setLineWidth(0.5)
-  doc.rect(SPACING.margin, tableTop, 170, headerHeight)
-  
   doc.setTextColor(255, 255, 255)
   doc.setFontSize(FONTS.small.size)
-  doc.setFont('helvetica', 'bold')
-  
+
   let xPos = SPACING.margin
   doc.text('Description', xPos + 4, tableTop + 8)
   xPos += colWidths[0]
@@ -345,61 +347,80 @@ function drawServicesTable(doc: jsPDF, sale: SaleData, startY: number): number {
   doc.text('TVA', xPos + 4, tableTop + 8)
   xPos += colWidths[3]
   doc.text('Total TTC', xPos + 4, tableTop + 8)
-  
-  doc.setDrawColor(102, 126, 234)
-  doc.setLineWidth(1)
-  doc.line(SPACING.margin, tableTop + headerHeight, 190, tableTop + headerHeight)
-  
-  // Contenu du tableau
+
   currentY = tableTop + headerHeight
-  const rowHeight = 15
-  
-  // Background alterné
-  doc.setFillColor(COLORS.accent)
-  doc.rect(SPACING.margin, currentY, 170, rowHeight, 'F')
-  
-  // Bordures du tableau
+
+  let items: SaleItem[] = []
+  if (sale.items) {
+    items = typeof sale.items === 'string' ? JSON.parse(sale.items) : sale.items
+  }
+
+  if (items.length === 0) {
+    items = [{
+      serviceName: sale.serviceName,
+      quantity: sale.quantity,
+      unitPriceHt: sale.unitPriceHt,
+      unitLabel: sale.unitLabel
+    }]
+  }
+
+  items.forEach((item, index) => {
+    const rowHeight = 12
+    if (index % 2 === 0) {
+      doc.setFillColor(COLORS.accent)
+      doc.rect(SPACING.margin, currentY, 170, rowHeight, 'F')
+    }
+
+    doc.setTextColor(COLORS.text)
+    doc.setFontSize(FONTS.body.size)
+    doc.setFont('helvetica', 'normal')
+
+    xPos = SPACING.margin
+    doc.text(item.serviceName, xPos + 2, currentY + 8)
+    xPos += colWidths[0]
+    const qtyD = item.unitLabel === 'heure' ? `${item.quantity} h` : item.quantity.toString()
+    doc.text(qtyD, xPos + 2, currentY + 8)
+    xPos += colWidths[1]
+    const pD = item.unitLabel === 'heure' ? `${item.unitPriceHt.toFixed(2)} €/h` : `${item.unitPriceHt.toFixed(2)} €`
+    doc.text(pD, xPos + 2, currentY + 8)
+    xPos += colWidths[2]
+    doc.text(`${sale.tvaRate}%`, xPos + 2, currentY + 8)
+    xPos += colWidths[3]
+    const totalRow = (item.quantity * (item.unitPriceHt + (item.optionsTotalHt || 0))) * (1 + (sale.tvaRate / 100))
+    doc.text(`${totalRow.toFixed(2)}€`, xPos + 2, currentY + 8)
+
+    currentY += rowHeight
+
+    // Options details if any
+    if (item.options && item.options.length > 0) {
+      item.options.forEach(opt => {
+        doc.setFontSize(FONTS.small.size)
+        doc.setTextColor(COLORS.textLight)
+        doc.text(`  + ${opt.name} (${opt.priceHt.toFixed(2)}€)`, SPACING.margin + 2, currentY + 4)
+        currentY += 6
+      })
+    }
+  })
+
+  // Bordures
   doc.setDrawColor(COLORS.border)
-  doc.setLineWidth(0.5)
-  
-  // Lignes verticales
   xPos = SPACING.margin
   for (let i = 0; i <= colWidths.length; i++) {
-    doc.line(xPos, tableTop, xPos, currentY + rowHeight)
+    doc.line(xPos, tableTop, xPos, currentY)
     if (i < colWidths.length) xPos += colWidths[i]
   }
-  
-  // Ligne horizontale du bas
-  doc.line(SPACING.margin, currentY + rowHeight, 190, currentY + rowHeight)
-  
-  // Contenu de la ligne
-  doc.setTextColor(COLORS.text)
-  doc.setFontSize(FONTS.body.size)
-  doc.setFont('helvetica', 'normal')
-  
-  xPos = SPACING.margin
-  doc.text(sale.serviceName || 'Service non défini', xPos + 2, currentY + 10)
-  xPos += colWidths[0]
-  const qtyDisplay = sale.unitLabel === 'heure' ? `${sale.quantity || 0} h` : (sale.quantity || 0).toString()
-  doc.text(qtyDisplay, xPos + 2, currentY + 10)
-  xPos += colWidths[1]
-  const priceDisplay = sale.unitLabel === 'heure' ? `${(sale.unitPriceHt || 0).toFixed(2)} €/h` : `${(sale.unitPriceHt || 0).toFixed(2)} €`
-  doc.text(priceDisplay, xPos + 2, currentY + 10)
-  xPos += colWidths[2]
-  doc.text(`${(sale.tvaRate || 0)}%`, xPos + 2, currentY + 10)
-  xPos += colWidths[3]
-  doc.text(`${(sale.totalTtc || 0).toFixed(2)}€`, xPos + 2, currentY + 10)
-  
-  return currentY + rowHeight
+  doc.line(SPACING.margin, currentY, 190, currentY)
+
+  return currentY
 }
 
 function drawTotalsSection(doc: jsPDF, sale: SaleData, startY: number): number {
   let currentY = startY
-  
+
   const totalsWidth = 80
   const totalsX = 190 - totalsWidth
   const headerStripHeight = 14
-  
+
   // Bandeau titre TOTAUX (bleu)
   doc.setFillColor(102, 126, 234) // secondary
   doc.rect(totalsX, currentY, totalsWidth, headerStripHeight, 'F')
@@ -410,9 +431,9 @@ function drawTotalsSection(doc: jsPDF, sale: SaleData, startY: number): number {
   doc.setFontSize(FONTS.header.size)
   doc.setFont('helvetica', 'bold')
   doc.text('TOTAUX', totalsX + 5, currentY + 9)
-  
+
   currentY += headerStripHeight
-  
+
   // Corps du bloc (fond bleu très léger)
   const bodyHeight = 36
   doc.setFillColor(238, 240, 252) // accentBlue
@@ -421,38 +442,38 @@ function drawTotalsSection(doc: jsPDF, sale: SaleData, startY: number): number {
   doc.setLineWidth(1)
   doc.rect(totalsX, currentY, totalsWidth, bodyHeight)
   doc.rect(totalsX, startY, totalsWidth, headerStripHeight + bodyHeight)
-  
+
   currentY += 10
-  
+
   const caHt = Number(sale.caHt) || 0
   const tvaAmt = Number(sale.tvaAmount) || 0
   let ttc = Number(sale.totalTtc) || 0
   if (!Number.isFinite(ttc)) ttc = caHt + tvaAmt
-  
+
   doc.setTextColor(COLORS.text)
   doc.setFontSize(FONTS.body.size)
   doc.setFont('helvetica', 'normal')
   doc.text('CA HT:', totalsX + 5, currentY)
   doc.text(`${caHt.toFixed(2)}€`, totalsX + totalsWidth - 8, currentY)
   currentY += SPACING.line
-  
+
   if ((Number(sale.tvaRate) || 0) > 0) {
     doc.text(`TVA (${sale.tvaRate || 0}%):`, totalsX + 5, currentY)
     doc.text(`${tvaAmt.toFixed(2)}€`, totalsX + totalsWidth - 8, currentY)
     currentY += SPACING.line
   }
-  
+
   doc.setDrawColor(102, 126, 234)
   doc.setLineWidth(1)
   doc.line(totalsX + 5, currentY, totalsX + totalsWidth - 5, currentY)
   currentY += SPACING.line
-  
+
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(FONTS.large.size)
   doc.setTextColor(102, 126, 234)
   doc.text('TOTAL TTC:', totalsX + 5, currentY)
   doc.text(`${ttc.toFixed(2)}€`, totalsX + totalsWidth - 8, currentY)
-  
+
   return currentY + 12
 }
 
@@ -462,32 +483,32 @@ function drawFooter(doc: jsPDF, companyInfo: CompanyInfo, startY: number) {
     doc.addPage()
     startY = 20
   }
-  
+
   // Ligne de séparation
   doc.setDrawColor(COLORS.border)
   doc.setLineWidth(1)
   doc.line(SPACING.margin, startY, 190, startY)
-  
+
   // Footer content
   doc.setTextColor(COLORS.textLight)
   doc.setFontSize(FONTS.small.size)
   doc.setFont('helvetica', 'normal')
-  
+
   const footerY = startY + 10
-  
+
   // Conditions générales
   doc.text('Conditions générales de vente disponibles sur demande.', SPACING.margin, footerY)
-  
+
   // Mentions légales
   const siretDisplay = companyInfo.siret?.trim()
     ? `SIRET: ${companyInfo.siret.replace(/(\d{3})(\d{3})(\d{3})(\d{5})/, '$1 $2 $3 $4')}`
     : 'SIRET: [À compléter dans Paramètres]'
   doc.text(`Société ${companyInfo.name} - ${siretDisplay}`, SPACING.margin, footerY + 8)
-  
+
   // Page number
   const pageNum = doc.getNumberOfPages()
   doc.text(`Page 1/${pageNum}`, 190 - 30, footerY + 8)
-  
+
   // Note de remerciement
   doc.setTextColor(COLORS.secondary)
   doc.setFont('helvetica', 'bold')
@@ -522,65 +543,61 @@ export async function generateInvoicePDF(sale: SaleData | SaleData[]) {
 
 function drawInvoiceDetails(doc: jsPDF, sale: SaleData, startY: number): number {
   let currentY = startY
-  
+
   // Titre section
   doc.setTextColor(COLORS.text)
   doc.setFontSize(FONTS.header.size)
   doc.setFont('helvetica', 'bold')
   doc.text('DÉTAILS DE LA FACTURE', SPACING.margin, currentY)
-  
+
   // Ligne de séparation
   doc.setDrawColor(COLORS.secondary)
   doc.setLineWidth(1)
   doc.line(SPACING.margin, currentY + SPACING.titleUnderline, 190, currentY + SPACING.titleUnderline)
-  
+
   currentY += SPACING.line
-  
+
   // Détails
   doc.setFontSize(FONTS.body.size)
   doc.setFont('helvetica', 'normal')
   doc.text(`Numéro de facture: ${sale.invoiceNo || 'Non défini'}`, SPACING.margin, currentY)
-  
+
   currentY += SPACING.line
   doc.text(`Date d'émission: ${sale.saleDate ? new Date(sale.saleDate).toLocaleDateString('fr-FR') : 'Non définie'}`, SPACING.margin, currentY)
-  
+
   currentY += SPACING.line
   doc.text(`Date d'échéance: ${new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString('fr-FR')}`, SPACING.margin, currentY)
-  
+
   return currentY
 }
 
 function drawInvoiceTable(doc: jsPDF, sales: SaleData[], startY: number): number {
   let currentY = startY
-  
+
   // Titre section
   doc.setTextColor(COLORS.text)
   doc.setFontSize(FONTS.header.size)
   doc.setFont('helvetica', 'bold')
   doc.text('SERVICES', SPACING.margin, currentY)
-  
+
   // Ligne de séparation
   doc.setDrawColor(COLORS.secondary)
   doc.setLineWidth(1)
   doc.line(SPACING.margin, currentY + SPACING.titleUnderline, 190, currentY + SPACING.titleUnderline)
-  
+
   currentY += SPACING.line
-  
-  // En-tête du tableau (bleu/violet foncé) — largeurs total 170 pour éviter colonne Total coupée
+
+  // En-tête du tableau
   const tableTop = currentY
   const colWidths = [70, 18, 28, 28, 26]
   const headerHeight = 12
-  
-  doc.setFillColor(76, 81, 191) // secondaryDark #4c51bf
+
+  doc.setFillColor(76, 81, 191)
   doc.rect(SPACING.margin, tableTop, 170, headerHeight, 'F')
-  doc.setDrawColor(102, 126, 234)
-  doc.setLineWidth(0.5)
-  doc.rect(SPACING.margin, tableTop, 170, headerHeight)
-  
   doc.setTextColor(255, 255, 255)
   doc.setFontSize(FONTS.small.size)
   doc.setFont('helvetica', 'bold')
-  
+
   let xPos = SPACING.margin
   doc.text('Description', xPos + 4, tableTop + 8)
   xPos += colWidths[0]
@@ -591,57 +608,73 @@ function drawInvoiceTable(doc: jsPDF, sales: SaleData[], startY: number): number
   doc.text('TVA', xPos + 4, tableTop + 8)
   xPos += colWidths[3]
   doc.text('Total TTC', xPos + 4, tableTop + 8)
-  
-  doc.setDrawColor(102, 126, 234)
-  doc.setLineWidth(1)
-  doc.line(SPACING.margin, tableTop + headerHeight, 190, tableTop + headerHeight)
-  
-  // Contenu du tableau
+
   currentY = tableTop + headerHeight
-  const rowHeight = 15
-  
-  sales.forEach((sale, index) => {
-    // Background alterné
-    if (index % 2 === 0) {
-      doc.setFillColor(COLORS.accent)
-      doc.rect(SPACING.margin, currentY, 170, rowHeight, 'F')
+
+  let rowIdx = 0
+  sales.forEach((sale) => {
+    let items: SaleItem[] = []
+    if (sale.items) {
+      items = typeof sale.items === 'string' ? JSON.parse(sale.items) : sale.items
     }
-    
-    // Contenu de la ligne
-    doc.setTextColor(COLORS.text)
-    doc.setFontSize(FONTS.body.size)
-    doc.setFont('helvetica', 'normal')
-    
-    xPos = SPACING.margin
-    doc.text(sale.serviceName || 'Service non défini', xPos + 2, currentY + 10)
-    xPos += colWidths[0]
-    const qtyDisplay = sale.unitLabel === 'heure' ? `${sale.quantity || 0} h` : (sale.quantity || 0).toString()
-    doc.text(qtyDisplay, xPos + 2, currentY + 10)
-    xPos += colWidths[1]
-    const priceDisplay = sale.unitLabel === 'heure' ? `${(sale.unitPriceHt || 0).toFixed(2)} €/h` : `${(sale.unitPriceHt || 0).toFixed(2)} €`
-    doc.text(priceDisplay, xPos + 2, currentY + 10)
-    xPos += colWidths[2]
-    doc.text(`${(sale.tvaRate || 0)}%`, xPos + 2, currentY + 10)
-    xPos += colWidths[3]
-    doc.text(`${(sale.totalTtc || 0).toFixed(2)}€`, xPos + 2, currentY + 10)
-    
-    currentY += rowHeight
+    if (items.length === 0) {
+      items = [{
+        serviceName: sale.serviceName,
+        quantity: sale.quantity,
+        unitPriceHt: sale.unitPriceHt,
+        unitLabel: sale.unitLabel
+      }]
+    }
+
+    items.forEach((item) => {
+      const rowHeight = 12
+      if (rowIdx % 2 === 0) {
+        doc.setFillColor(COLORS.accent)
+        doc.rect(SPACING.margin, currentY, 170, rowHeight, 'F')
+      }
+
+      doc.setTextColor(COLORS.text)
+      doc.setFontSize(FONTS.body.size)
+      doc.setFont('helvetica', 'normal')
+
+      xPos = SPACING.margin
+      doc.text(item.serviceName, xPos + 2, currentY + 8)
+      xPos += colWidths[0]
+      const qtyD = item.unitLabel === 'heure' ? `${item.quantity} h` : item.quantity.toString()
+      doc.text(qtyD, xPos + 2, currentY + 8)
+      xPos += colWidths[1]
+      const pD = item.unitLabel === 'heure' ? `${item.unitPriceHt.toFixed(2)} €/h` : `${item.unitPriceHt.toFixed(2)} €`
+      doc.text(pD, xPos + 2, currentY + 8)
+      xPos += colWidths[2]
+      doc.text(`${sale.tvaRate}%`, xPos + 2, currentY + 8)
+      xPos += colWidths[3]
+      const totalRow = (item.quantity * (item.unitPriceHt + (item.optionsTotalHt || 0))) * (1 + (sale.tvaRate / 100))
+      doc.text(`${totalRow.toFixed(2)}€`, xPos + 2, currentY + 8)
+
+      currentY += rowHeight
+      rowIdx++
+
+      if (item.options && item.options.length > 0) {
+        item.options.forEach(opt => {
+          doc.setFontSize(FONTS.small.size)
+          doc.setTextColor(COLORS.textLight)
+          doc.text(`  + ${opt.name} (${opt.priceHt.toFixed(2)}€)`, SPACING.margin + 2, currentY + 4)
+          currentY += 6
+        })
+      }
+    })
   })
-  
-  // Bordures du tableau
+
+  // Bordures finales
   doc.setDrawColor(COLORS.border)
   doc.setLineWidth(0.5)
-  
-  // Lignes verticales
   xPos = SPACING.margin
   for (let i = 0; i <= colWidths.length; i++) {
     doc.line(xPos, tableTop, xPos, currentY)
     if (i < colWidths.length) xPos += colWidths[i]
   }
-  
-  // Ligne horizontale du bas
   doc.line(SPACING.margin, currentY, 190, currentY)
-  
+
   return currentY
 }
 
@@ -651,13 +684,13 @@ function drawInvoiceTotals(doc: jsPDF, sales: SaleData[], startY: number): numbe
   let totalTtc = sales.reduce((sum, sale) => sum + (Number(sale.totalTtc) || 0), 0)
   if (!Number.isFinite(totalTtc) || totalTtc === 0) totalTtc = totalCaHt + totalTva
   const tvaRate = sales.length > 0 ? (Number(sales[0].tvaRate) || 0) : 0
-  
+
   let currentY = startY
-  
+
   const totalsWidth = 80
   const totalsX = 190 - totalsWidth
   const headerStripHeight = 14
-  
+
   doc.setFillColor(102, 126, 234)
   doc.rect(totalsX, currentY, totalsWidth, headerStripHeight, 'F')
   doc.setDrawColor(102, 126, 234)
@@ -667,9 +700,9 @@ function drawInvoiceTotals(doc: jsPDF, sales: SaleData[], startY: number): numbe
   doc.setFontSize(FONTS.header.size)
   doc.setFont('helvetica', 'bold')
   doc.text('TOTAUX', totalsX + 5, currentY + 9)
-  
+
   currentY += headerStripHeight
-  
+
   const bodyHeight = tvaRate > 0 ? 46 : 36
   doc.setFillColor(238, 240, 252)
   doc.rect(totalsX, currentY, totalsWidth, bodyHeight, 'F')
@@ -677,52 +710,52 @@ function drawInvoiceTotals(doc: jsPDF, sales: SaleData[], startY: number): numbe
   doc.setLineWidth(1)
   doc.rect(totalsX, currentY, totalsWidth, bodyHeight)
   doc.rect(totalsX, startY, totalsWidth, headerStripHeight + bodyHeight)
-  
+
   currentY += 10
-  
+
   doc.setTextColor(COLORS.text)
   doc.setFontSize(FONTS.body.size)
   doc.setFont('helvetica', 'normal')
   doc.text('CA HT:', totalsX + 5, currentY)
   doc.text(`${totalCaHt.toFixed(2)}€`, totalsX + totalsWidth - 8, currentY)
   currentY += SPACING.line
-  
+
   if (tvaRate > 0) {
     doc.text(`TVA (${tvaRate}%):`, totalsX + 5, currentY)
     doc.text(`${totalTva.toFixed(2)}€`, totalsX + totalsWidth - 8, currentY)
     currentY += SPACING.line
   }
-  
+
   doc.setDrawColor(102, 126, 234)
   doc.setLineWidth(1)
   doc.line(totalsX + 5, currentY, totalsX + totalsWidth - 5, currentY)
   currentY += SPACING.line
-  
+
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(FONTS.large.size)
   doc.setTextColor(102, 126, 234)
   doc.text('TOTAL TTC:', totalsX + 5, currentY)
   doc.text(`${totalTtc.toFixed(2)}€`, totalsX + totalsWidth - 8, currentY)
-  
+
   return currentY + 12
 }
 
 function drawPaymentInfo(doc: jsPDF, companyInfo: CompanyInfo, startY: number): number {
   let currentY = startY
-  
+
   // Titre section
   doc.setTextColor(COLORS.text)
   doc.setFontSize(FONTS.header.size)
   doc.setFont('helvetica', 'bold')
   doc.text('INFORMATIONS DE PAIEMENT', SPACING.margin, currentY)
-  
+
   // Ligne de séparation
   doc.setDrawColor(COLORS.secondary)
   doc.setLineWidth(1)
   doc.line(SPACING.margin, currentY + SPACING.titleUnderline, 190, currentY + SPACING.titleUnderline)
-  
+
   currentY += SPACING.line
-  
+
   // Cadre des informations bancaires
   const boxHeight = 45
   doc.setFillColor(COLORS.accent)
@@ -730,18 +763,18 @@ function drawPaymentInfo(doc: jsPDF, companyInfo: CompanyInfo, startY: number): 
   doc.setDrawColor(COLORS.border)
   doc.setLineWidth(1)
   doc.rect(SPACING.margin, currentY, 170, boxHeight)
-  
+
   // Contenu
   doc.setTextColor(COLORS.text)
   doc.setFontSize(FONTS.body.size)
   doc.setFont('helvetica', 'bold')
   doc.text('Coordonnées bancaires:', SPACING.margin + 5, currentY + 10)
-  
+
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(FONTS.small.size)
   doc.text('Banque: [À compléter]', SPACING.margin + 5, currentY + 18)
   doc.text('IBAN: [À compléter]', SPACING.margin + 5, currentY + 26)
   doc.text('BIC: [À compléter]', SPACING.margin + 5, currentY + 34)
-  
+
   return currentY + boxHeight
 }

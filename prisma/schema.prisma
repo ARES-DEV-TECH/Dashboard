@@ -103,6 +103,7 @@ model Sale {
   tvaAmount    Float    // caHt * tauxTvaEntreprise/100
   totalTtc     Float    // caHt + tvaAmount
   options      String?  // JSON string des options sélectionnées
+  items        String?  // JSON string of SaleItem[] (compatible with QuoteItem/InvoiceItem)
   year         Int
   recurring    Boolean? @default(false)
   recurringType String? // "mensuel" | "annuel" | "ponctuel"

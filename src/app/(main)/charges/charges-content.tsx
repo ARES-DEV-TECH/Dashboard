@@ -12,9 +12,11 @@ import { Charge, Client } from '@/lib/validations'
 import { generateCSV, downloadCSV } from '@/lib/csv'
 import { electronFetch } from '@/lib/electron-api'
 import { toast } from 'sonner'
-import { safeErrorMessage, formatTableDate } from '@/lib/utils'
+import { safeErrorMessage, formatTableDate, cn } from '@/lib/utils'
 import { Skeleton } from '@/components/ui/skeleton'
 import { ChargeFormModal } from './components/ChargeFormModal'
+import { Card, CardContent } from '@/components/ui/card'
+import { Edit, Trash2, MoreHorizontal } from 'lucide-react'
 import { SWR_KEYS, fetchCharges, fetchArticles, fetchClients } from '@/lib/swr-fetchers'
 import { SWR_LIST_OPTIONS } from '@/lib/swr-config'
 
@@ -137,7 +139,7 @@ export function ChargesContent() {
   const handleEdit = (charge: Charge) => {
     setEditingCharge(charge)
     const recurringType = charge.recurringType || ''
-    
+
     // Préserver la date originale sans conversion de fuseau horaire
     let expenseDate = ''
     if (typeof charge.expenseDate === 'string') {
@@ -147,7 +149,7 @@ export function ChargesContent() {
       const date = new Date(charge.expenseDate)
       expenseDate = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
     }
-    
+
     setFormData({
       expenseDate: expenseDate,
       category: charge.category || '',
@@ -249,7 +251,7 @@ export function ChargesContent() {
     setColumnVisibility(next)
     try {
       window.localStorage.setItem(CHARGES_COLUMNS_STORAGE_KEY, JSON.stringify(next))
-    } catch {}
+    } catch { }
   }
 
   const toggleColumn = (key: string) => {
@@ -356,6 +358,70 @@ export function ChargesContent() {
     </Popover>
   )
 
+
+  const renderMobileItem = (charge: Charge) => {
+    return (
+      <Card className="group relative overflow-hidden transition-all hover:ring-1 hover:ring-primary/20 border-primary/5 bg-gradient-to-b from-background/80 to-muted/20">
+        <div className="absolute top-0 left-0 w-1 h-full bg-primary" />
+        <CardContent className="p-4 space-y-4">
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0 flex-1">
+              <div className="font-bold text-base truncate leading-tight">{charge.description || 'Charge sans description'}</div>
+              <div className="flex items-center gap-2 mt-1">
+                <span className="text-[10px] text-muted-foreground uppercase font-semibold tracking-wider bg-muted rounded px-1.5 py-0.5">
+                  {charge.category || 'Non classé'}
+                </span>
+                <span className="text-[10px] text-muted-foreground shrink-0">•</span>
+                <span className="text-[10px] text-muted-foreground truncate">{charge.vendor || 'Inconnu'}</span>
+              </div>
+            </div>
+
+            <div className="flex flex-col items-end gap-1 shrink-0">
+              <div className="font-bold text-lg italic text-primary leading-none">
+                {new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(charge.amount ?? 0)}
+              </div>
+              <span className="text-[10px] text-muted-foreground font-mono">
+                {formatTableDate(String(charge.expenseDate))}
+              </span>
+            </div>
+          </div>
+
+          {(charge.linkedClient || charge.linkedService) && (
+            <div className="grid grid-cols-2 gap-2 p-2 rounded-lg bg-background/40 border border-primary/5 text-[10px]">
+              {charge.linkedClient && (
+                <div className="min-w-0">
+                  <div className="text-muted-foreground font-bold uppercase tracking-widest text-[8px] mb-0.5">Client</div>
+                  <div className="truncate font-medium">{charge.linkedClient}</div>
+                </div>
+              )}
+              {charge.linkedService && (
+                <div className="min-w-0">
+                  <div className="text-muted-foreground font-bold uppercase tracking-widest text-[8px] mb-0.5">Service</div>
+                  <div className="truncate font-medium">{charge.linkedService}</div>
+                </div>
+              )}
+            </div>
+          )}
+
+          <div className="flex items-center justify-between pt-2 border-t border-muted/50">
+            <Badge variant={charge.recurringType === 'mensuel' ? 'default' : charge.recurringType === 'annuel' ? 'secondary' : 'outline'} className="text-[10px] font-normal opacity-70">
+              {charge.recurringType === 'mensuel' ? 'Récurrent Mensuel' : charge.recurringType === 'annuel' ? 'Récurrent Annuel' : 'Ponctuel'}
+            </Badge>
+
+            <div className="flex gap-1 shrink-0">
+              <Button size="icon" variant="ghost" className="h-8 w-8 rounded-lg hover:bg-primary/10 hover:text-primary" onClick={() => handleEdit(charge)}>
+                <Edit className="h-4 w-4" />
+              </Button>
+              <Button size="icon" variant="ghost" className="h-8 w-8 rounded-lg text-destructive hover:bg-destructive/10" onClick={() => handleDelete(charge)}>
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
+
   if (loading && charges.length === 0) {
     return (
       <div className="w-full min-w-0 py-4 sm:py-6 space-y-4">
@@ -392,9 +458,8 @@ export function ChargesContent() {
         onEdit={handleEdit}
         onDelete={handleDelete}
         onExport={handleExport}
-        searchPlaceholder="Rechercher une charge..."
-        emptyMessage="Aucune charge. Créez votre première charge."
         virtualized
+        renderMobileItem={renderMobileItem}
       />
 
       <ChargeFormModal

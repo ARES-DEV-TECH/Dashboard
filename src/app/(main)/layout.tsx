@@ -4,6 +4,8 @@ import { DashboardHeader } from '@/components/dashboard-header'
 import { NavigationProgress } from '@/components/NavigationProgress'
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
 
+import { MobileNav } from '@/components/mobile-nav'
+
 export default function MainLayout({ children }: { children: React.ReactNode }) {
   return (
     <SidebarProvider
@@ -18,10 +20,11 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
       <AppSidebar variant="inset" />
       <SidebarInset>
         <DashboardHeader />
-        <main className="flex flex-1 flex-col overflow-auto px-4 py-4 sm:px-6 sm:py-6">
+        <div className="flex flex-1 flex-col overflow-auto px-4 py-4 sm:px-6 sm:py-6 pb-24 md:pb-6">
           <div className="mx-auto w-full">{children}</div>
-        </main>
+        </div>
       </SidebarInset>
+      <MobileNav />
     </SidebarProvider>
   )
 }

@@ -32,9 +32,23 @@ export const saleSchema = z.object({
   invoiceNo: z.string().min(1, 'Le numéro de facture est requis'),
   saleDate: z.string().min(1, 'La date de vente est requise'),
   clientName: z.string().min(1, 'Le client est requis'),
-  serviceName: z.string().min(1, 'Le service est requis'),
-  quantity: z.number().positive('La quantité doit être strictement positive'),
-  unitPriceHt: z.number().positive('Le prix unitaire doit être strictement positif'),
+  serviceName: z.string().min(1, 'Le service est requis').optional(),
+  quantity: z.number().positive('La quantité doit être strictement positive').optional(),
+  unitPriceHt: z.number().positive('Le prix unitaire doit être strictement positif').optional(),
+  items: z.array(z.object({
+    serviceName: z.string().min(1, 'Le nom du service est requis'),
+    description: z.string().optional().nullable(),
+    quantity: z.number().min(0, 'La quantité doit être positive'),
+    unitPriceHt: z.number().min(0, 'Le prix unitaire doit être positif'),
+    unitLabel: z.string().optional().nullable(),
+    options: z.array(z.object({
+      id: z.string(),
+      name: z.string(),
+      priceHt: z.number(),
+      selected: z.boolean(),
+    })).optional(),
+    optionsTotalHt: z.number().optional(),
+  })).optional(),
   unitLabel: z.string().optional(), // "heure" | "forfait" pour affichage PDF
   options: z.string().optional(), // JSON des options sélectionnées
   recurring: z.boolean().optional(),

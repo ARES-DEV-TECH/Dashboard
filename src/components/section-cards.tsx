@@ -78,7 +78,7 @@ export function SectionCards({ kpis }: { kpis: DashboardData['kpis'] }) {
   ]
 
   return (
-    <div className="grid grid-cols-1 gap-4 px-4 @xl/main:grid-cols-2 @5xl/main:grid-cols-4 lg:px-6">
+    <div className="grid grid-cols-1 gap-3 px-4 @2xl/main:grid-cols-2 @5xl/main:grid-cols-4 lg:px-6 sm:gap-4">
       {cards.map((card, i) => (
         <Card
           key={i}
@@ -111,13 +111,12 @@ export function SectionCards({ kpis }: { kpis: DashboardData['kpis'] }) {
               <div className="absolute right-4 top-4">
                 <Badge
                   variant="outline"
-                  className={`flex gap-1 rounded-lg text-xs ${
-                    card.trend === 'up'
-                      ? 'border-green-500/20 bg-green-500/10 text-green-600'
-                      : card.trend === 'down'
-                        ? 'border-red-500/20 bg-red-500/10 text-red-600'
-                        : 'text-muted-foreground'
-                  }`}
+                  className={`flex gap-1 rounded-lg text-xs ${card.trend === 'up'
+                    ? 'border-green-500/20 bg-green-500/10 text-green-600'
+                    : card.trend === 'down'
+                      ? 'border-red-500/20 bg-red-500/10 text-red-600'
+                      : 'text-muted-foreground'
+                    }`}
                 >
                   {card.trend === 'up' ? (
                     <TrendingUp className="size-3" />

@@ -44,15 +44,15 @@ export function AnalyticsCharges({ data }: AnalyticsChargesProps) {
 
   return (
     <div className="space-y-6">
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-7">
         {/* Tableau détaillé */}
-        <Card className="col-span-4 order-2 lg:order-1 relative overflow-hidden transition-all hover:shadow-md border-primary/10 bg-background/60 backdrop-blur-sm">
+        <Card className="col-span-1 md:col-span-2 lg:col-span-4 order-2 lg:order-1 relative overflow-hidden transition-all hover:shadow-md border-primary/10 bg-background/60 backdrop-blur-sm">
           <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent opacity-50 pointer-events-none" />
           <CardHeader>
             <CardTitle>Détail des Charges</CardTitle>
             <CardDescription>Par catégorie de dépense</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="overflow-auto">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -68,13 +68,13 @@ export function AnalyticsCharges({ data }: AnalyticsChargesProps) {
                     <TableCell className="font-medium">
                       {item.category || 'Non catégorisé'}
                     </TableCell>
-                    <TableCell className="text-right text-muted-foreground">
+                    <TableCell className="text-right text-muted-foreground whitespace-nowrap">
                       {formatCurrency(item.recurring)}
                     </TableCell>
-                    <TableCell className="text-right text-muted-foreground">
+                    <TableCell className="text-right text-muted-foreground whitespace-nowrap">
                       {formatCurrency(item.oneTime)}
                     </TableCell>
-                    <TableCell className="text-right font-bold">
+                    <TableCell className="text-right font-bold whitespace-nowrap">
                       {formatCurrency(item.total)}
                     </TableCell>
                   </TableRow>
@@ -92,7 +92,7 @@ export function AnalyticsCharges({ data }: AnalyticsChargesProps) {
         </Card>
 
         {/* Graphique */}
-        <Card className="col-span-3 order-1 lg:order-2 relative overflow-hidden transition-all hover:shadow-md border-primary/10 bg-background/60 backdrop-blur-sm">
+        <Card className="col-span-1 md:col-span-2 lg:col-span-3 order-1 lg:order-2 relative overflow-hidden transition-all hover:shadow-md border-primary/10 bg-background/60 backdrop-blur-sm">
           <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent opacity-50 pointer-events-none" />
           <CardHeader>
             <CardTitle>Répartition des Dépenses</CardTitle>
@@ -115,7 +115,7 @@ export function AnalyticsCharges({ data }: AnalyticsChargesProps) {
                       <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                     ))}
                   </Pie>
-                  <Tooltip 
+                  <Tooltip
                     formatter={(value: number | undefined) => formatCurrency(value ?? 0)}
                     contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
                   />

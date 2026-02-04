@@ -70,7 +70,7 @@ export async function POST(request: NextRequest) {
     const baseUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : request.nextUrl.origin
     const verificationToken = generateEmailVerificationToken(user.id, user.email)
     const confirmUrl = `${baseUrl}/confirm-email?token=${encodeURIComponent(verificationToken)}`
-    sendEmail({
+    await sendEmail({
       to: email,
       subject: 'Validez votre compte ARES Dashboard',
       html: `
@@ -80,7 +80,7 @@ export async function POST(request: NextRequest) {
         <p>Ce lien expire dans 24 heures. Si vous n'êtes pas à l'origine de cette inscription, ignorez cet email.</p>
         <p>— L'équipe ARES Dashboard</p>
       `,
-    }).catch(() => {})
+    })
 
     // Pas de cookie : l'utilisateur doit d'abord valider son email
     return NextResponse.json({

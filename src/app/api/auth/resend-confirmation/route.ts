@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
     const safeFirstName = user.firstName?.trim()
     const greeting = safeFirstName ? `Bonjour ${escapeHtml(safeFirstName)},` : 'Bonjour,'
 
-    sendEmail({
+    await sendEmail({
       to: user.email,
       subject: 'Validez votre compte ARES Dashboard',
       html: `
@@ -61,7 +61,7 @@ export async function POST(request: NextRequest) {
         <p>Ce lien expire dans 24 heures. Si vous n'êtes pas à l'origine de cette demande, ignorez cet email.</p>
         <p>— L'équipe ARES Dashboard</p>
       `,
-    }).catch(() => {})
+    })
 
     return NextResponse.json({ message: successMessage }, { status: 200 })
   } catch (e) {

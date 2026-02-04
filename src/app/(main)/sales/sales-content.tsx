@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from 'react'
 import useSWR, { useSWRConfig } from 'swr'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
+import { ResponsiveDialog } from '@/components/responsive-dialog'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -13,13 +14,15 @@ import { generateCSV, downloadCSV } from '@/lib/csv'
 import { getDefaultTvaRate } from '@/lib/settings'
 import { electronFetch } from '@/lib/electron-api'
 import { toast } from 'sonner'
-import { safeErrorMessage, formatTableDate } from '@/lib/utils'
+import { safeErrorMessage, formatTableDate, cn } from '@/lib/utils'
 import { SWR_KEYS, fetchClients, fetchArticles, fetchSalesList, fetchCharges } from '@/lib/swr-fetchers'
 import { SWR_LIST_OPTIONS } from '@/lib/swr-config'
-import { Plus, Columns3, FileText, User, Package } from 'lucide-react'
+import { Plus, Columns3, FileText, User, Package, Settings, Receipt, MoreHorizontal, Trash2, Edit } from 'lucide-react'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import { Badge } from '@/components/ui/badge'
 
 type SaleRow = {
   invoiceNo: string
@@ -113,14 +116,16 @@ export function SalesContent() {
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingSale, setEditingSale] = useState(null as any)
   const [formData, setFormData] = useState({
-    saleDate: '', invoiceNo: '', clientName: '', serviceName: '', quantity: 1, unitPriceHt: 0,
-    unitLabel: '' as string, selectedOptions: [] as string[], linkedCharges: [] as string[],
+    saleDate: '', invoiceNo: '', clientName: '',
+    items: [{
+      serviceName: '', description: '', quantity: 1, unitPriceHt: 0,
+      unitLabel: '', selectedOptions: [] as string[], serviceOptions: [] as any[]
+    }],
+    linkedCharges: [] as string[],
     recurringType: 'ponctuel' as 'ponctuel' | 'mensuel' | 'annuel',
     endDate: '', status: 'paid'
   })
-  const [selectedServiceOptions, setSelectedServiceOptions] = useState([] as any[])
-  const [selectedOptions, setSelectedOptions] = useState([] as any[])
-  const [hoursInput, setHoursInput] = useState('')
+  const [hoursInput, setHoursInput] = useState<string[]>([''])
 
   const handleChargeToggle = (chargeId: string) => {
     const id = String(chargeId)
@@ -132,38 +137,68 @@ export function SalesContent() {
     }))
   }
 
-  const loadServiceOptions = async (serviceName: string) => {
-    try {
-      const res = await electronFetch(`/api/service-options?serviceName=${encodeURIComponent(serviceName)}`)
-      if (res.ok) setSelectedServiceOptions((await res.json()).options || [])
-      else setSelectedServiceOptions([])
-    } catch {
-      setSelectedServiceOptions([])
-    }
+  const addLineItem = () => {
+    setFormData(prev => ({
+      ...prev,
+      items: [...prev.items, {
+        serviceName: '', description: '', quantity: 1, unitPriceHt: 0,
+        unitLabel: '', selectedOptions: [] as string[], serviceOptions: [] as any[]
+      }]
+    }))
+    setHoursInput(prev => [...prev, ''])
   }
 
-  const handleServiceChange = (serviceName: string) => {
+  const removeLineItem = (index: number) => {
+    if (formData.items.length <= 1) return
+    setFormData(prev => ({
+      ...prev,
+      items: prev.items.filter((_, i) => i !== index)
+    }))
+    setHoursInput(prev => prev.filter((_, i) => i !== index))
+  }
+
+  const updateLineItem = (index: number, updates: any) => {
+    setFormData(prev => ({
+      ...prev,
+      items: prev.items.map((item, i) => i === index ? { ...item, ...updates } : item)
+    }))
+  }
+
+  const handleLineServiceChange = async (index: number, serviceName: string) => {
     const article = articles.find((a: any) => a.serviceName === serviceName)
     if (article) {
-      const billByHour = !!article.billByHour
-      setFormData(prev => ({
-        ...prev,
-        serviceName,
-        unitPriceHt: article.priceHt,
-        quantity: 1,
-        unitLabel: billByHour ? 'heure' : 'forfait',
-      }))
-      setHoursInput(billByHour ? '1' : '')
-      loadServiceOptions(serviceName)
+      try {
+        const res = await electronFetch(`/api/service-options?serviceName=${encodeURIComponent(serviceName)}`)
+        const options = res.ok ? (await res.json()).options || [] : []
+
+        updateLineItem(index, {
+          serviceName,
+          unitPriceHt: article.priceHt,
+          unitLabel: article.billByHour ? 'heure' : 'forfait',
+          serviceOptions: options,
+          selectedOptions: options.filter((o: any) => o.isDefault).map((o: any) => o.id)
+        })
+
+        const newHours = [...hoursInput]
+        newHours[index] = article.billByHour ? '1' : ''
+        setHoursInput(newHours)
+      } catch (error) {
+        console.error('Error loading service options:', error)
+      }
     }
   }
 
-  const handleOptionToggle = (optionId: string) => {
-    setSelectedOptions(prev => 
-      prev.includes(optionId) 
-        ? prev.filter(id => id !== optionId)
-        : [...prev, optionId]
-    )
+  const handleLineOptionToggle = (itemIndex: number, optionId: string) => {
+    setFormData(prev => ({
+      ...prev,
+      items: prev.items.map((item, i) => {
+        if (i !== itemIndex) return item
+        const newSelected = item.selectedOptions.includes(optionId)
+          ? item.selectedOptions.filter(id => id !== optionId)
+          : [...item.selectedOptions, optionId]
+        return { ...item, selectedOptions: newSelected }
+      })
+    }))
   }
 
   const handleAdd = async () => {
@@ -183,19 +218,16 @@ export function SalesContent() {
       saleDate: today,
       invoiceNo: nextNo,
       clientName: '',
-      serviceName: '',
-      quantity: 1,
-      unitPriceHt: 0,
-      unitLabel: '',
-      selectedOptions: [],
+      items: [{
+        serviceName: '', description: '', quantity: 1, unitPriceHt: 0,
+        unitLabel: '', selectedOptions: [] as string[], serviceOptions: [] as any[]
+      }],
       linkedCharges: [],
       recurringType: 'ponctuel',
       endDate: '',
       status: 'paid'
     })
-    setHoursInput('')
-    setSelectedServiceOptions([])
-    setSelectedOptions([])
+    setHoursInput([''])
     setIsDialogOpen(true)
   }
 
@@ -208,101 +240,131 @@ export function SalesContent() {
   // Fonction utilitaire pour formater les dates
   const formatDateForInput = (date: any) => {
     if (!date) return '';
-    
+
     try {
       // Si c'est déjà une string au format YYYY-MM-DD, la retourner
       if (typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
         return date;
       }
-      
+
       // Sinon, convertir en Date et formater
       const dateObj = new Date(date);
       if (isNaN(dateObj.getTime())) return ''
-      
+
       return dateObj.toISOString().split('T')[0];
     } catch {
       return ''
     }
   };
 
-  const handleEdit = (sale: any) => {
+  const handleEdit = async (sale: any) => {
     setEditingSale(sale)
 
-    // Trouver les charges liées à cette vente (ids en string pour cohérence)
     const linkedCharges = charges
       .filter(charge => charge.linkedSaleId === sale.invoiceNo)
       .map(charge => String(charge.id))
-    
-    const unitLabel = sale.unitLabel || (articles.find((a: any) => a.serviceName === sale.serviceName)?.billByHour ? 'heure' : 'forfait')
+
+    let items = []
+    if (sale.items) {
+      try {
+        items = JSON.parse(sale.items).map((item: any) => ({
+          ...item,
+          serviceOptions: [], // will be loaded if needed
+          selectedOptions: item.selectedOptions || []
+        }))
+      } catch (e) {
+        console.error('Error parsing items:', e)
+      }
+    }
+
+    if (items.length === 0) {
+      const unitLabel = sale.unitLabel || (articles.find((a: any) => a.serviceName === sale.serviceName)?.billByHour ? 'heure' : 'forfait')
+      items = [{
+        serviceName: sale.serviceName,
+        description: '',
+        quantity: sale.quantity,
+        unitPriceHt: sale.unitPriceHt,
+        unitLabel,
+        selectedOptions: [],
+        serviceOptions: []
+      }]
+      if (sale.options) {
+        try {
+          const legacyOptions = JSON.parse(sale.options)
+          items[0].selectedOptions = legacyOptions.filter((o: any) => o.selected).map((o: any) => o.id)
+        } catch { }
+      }
+    }
+
+    // Load options for each item
+    const itemsWithOpts = await Promise.all(items.map(async (item) => {
+      try {
+        const res = await electronFetch(`/api/service-options?serviceName=${encodeURIComponent(item.serviceName)}`)
+        const options = res.ok ? (await res.json()).options || [] : []
+        return { ...item, serviceOptions: options }
+      } catch {
+        return item
+      }
+    }))
+
     setFormData({
       saleDate: formatDateForInput(sale.saleDate),
       invoiceNo: sale.invoiceNo,
       clientName: sale.clientName,
-      serviceName: sale.serviceName,
-      quantity: sale.quantity,
-      unitPriceHt: sale.unitPriceHt,
-      unitLabel,
-      selectedOptions: [],
+      items: itemsWithOpts,
       linkedCharges: linkedCharges,
       recurringType: sale.recurringType || (sale.recurring ? 'mensuel' : 'ponctuel'),
       endDate: formatDateForInput(sale.endDate),
       status: sale.status || 'paid'
     })
-    setHoursInput(unitLabel === 'heure' ? String(sale.quantity) : '')
-    
-    // Charger les options du service
-    loadServiceOptions(sale.serviceName)
-    
-    // Charger les options sélectionnées
-    if (sale.options) {
-      try {
-        const options = JSON.parse(sale.options)
-        const selectedIds = options.filter((opt: any) => opt.selected).map((opt: any) => opt.id)
-        setSelectedOptions(selectedIds)
-    } catch {
-      // Options invalides, ignorer
-    }
-    }
-    
+    setHoursInput(itemsWithOpts.map(i => i.unitLabel === 'heure' ? String(i.quantity) : ''))
     setIsDialogOpen(true)
   }
 
   const handleSubmit = async (e: any) => {
     e.preventDefault()
-    
-    // Si facturation à l'heure, le nombre d'heures est obligatoire
-    if (formData.unitLabel === 'heure') {
-      const hours = parseFloat(hoursInput)
-      if (hoursInput.trim() === '' || isNaN(hours) || hours < 0.5) {
-        toast.error('Ventes', { description: 'Veuillez saisir le nombre d\'heures (minimum 0,5).' })
-        return
-      }
-      setFormData(prev => ({ ...prev, quantity: hours }))
-    }
-    
-    // Calculer le prix des options sélectionnées
-    const selectedOptionsData = selectedServiceOptions
-      .filter(option => selectedOptions.includes(option.id))
-      .map(option => ({
-        id: option.id,
-        name: option.name,
-        priceHt: option.priceHt,
-        selected: true
-      }))
-    
-    const optionsTotalHt = selectedOptionsData.reduce((sum, option) => sum + option.priceHt, 0)
-    const quantityForTotal = formData.unitLabel === 'heure' ? (parseFloat(hoursInput) || 0) : formData.quantity
-    const totalHt = (formData.unitPriceHt + optionsTotalHt) * quantityForTotal
-    // Le calcul de la TVA se fait maintenant côté serveur avec le taux centralisé
 
-    const quantityToSave = formData.unitLabel === 'heure' ? (parseFloat(hoursInput) || formData.quantity) : formData.quantity
-    
+    // Validation des quantités
+    for (let i = 0; i < formData.items.length; i++) {
+      const item = formData.items[i]
+      if (item.unitLabel === 'heure') {
+        const hours = parseFloat(hoursInput[i])
+        if (hoursInput[i].trim() === '' || isNaN(hours) || hours < 0.5) {
+          toast.error('Ventes', { description: `Veuillez saisir le nombre d'heures pour l'élément ${i + 1} (minimum 0,5).` })
+          return
+        }
+      }
+    }
+
+    const itemsToSave = formData.items.map((item, i) => {
+      const quantity = item.unitLabel === 'heure' ? (parseFloat(hoursInput[i]) || item.quantity) : item.quantity
+
+      const selectedOptionsData = item.serviceOptions
+        .filter(opt => item.selectedOptions.includes(opt.id))
+        .map(opt => ({
+          id: opt.id,
+          name: opt.name,
+          priceHt: opt.priceHt,
+          selected: true
+        }))
+
+      const optionsTotalHt = selectedOptionsData.reduce((sum: number, opt: any) => sum + opt.priceHt, 0)
+
+      return {
+        ...item,
+        quantity,
+        options: selectedOptionsData,
+        optionsTotalHt
+      }
+    })
+
+    const totalHt = itemsToSave.reduce((sum, item) => sum + (item.quantity * (item.unitPriceHt + item.optionsTotalHt)), 0)
     const isRecurring = formData.recurringType !== 'ponctuel'
+
     const saleData = {
       ...formData,
-      quantity: quantityToSave,
+      items: itemsToSave,
       caHt: totalHt,
-      options: JSON.stringify(selectedOptionsData),
       year: new Date(formData.saleDate).getFullYear(),
       recurring: isRecurring,
       recurringType: formData.recurringType,
@@ -322,9 +384,9 @@ export function SalesContent() {
       clientCompany: client?.company?.trim() ?? '',
       clientLastName: client?.lastName?.trim() ?? '',
       clientFirstName: client?.firstName?.trim() ?? '',
-      serviceName: formData.serviceName,
-      quantity: quantityToSave,
-      unitPriceHt: formData.unitPriceHt,
+      serviceName: itemsToSave.length > 1 ? `${itemsToSave[0].serviceName} (+${itemsToSave.length - 1})` : itemsToSave[0].serviceName,
+      quantity: itemsToSave.reduce((s, i) => s + i.quantity, 0),
+      unitPriceHt: totalHt / Math.max(1, itemsToSave.reduce((s, i) => s + i.quantity, 0)),
       caHt: totalHt,
       totalTtc: totalHt * 1.2,
       tvaAmount: totalHt * 0.2,
@@ -587,6 +649,81 @@ export function SalesContent() {
     </Popover>
   )
 
+  const renderMobileItem = (sale: SaleRow) => {
+    const statusLabel = sale.status === 'paid' ? 'Payée' : sale.status === 'pending' ? 'En attente' : 'Annulée';
+    const statusVariant = sale.status === 'paid' ? 'default' : sale.status === 'pending' ? 'secondary' : 'destructive';
+
+    const sidebarColor = sale.status === 'paid' ? 'bg-green-500' : sale.status === 'pending' ? 'bg-orange-500' : 'bg-red-500';
+
+    return (
+      <Card className="group relative overflow-hidden transition-all hover:ring-1 hover:ring-primary/20 border-primary/5 bg-gradient-to-b from-background/80 to-muted/20">
+        <div className={cn("absolute top-0 left-0 w-1 h-full", sidebarColor)} />
+        <CardContent className="p-4 space-y-4">
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="font-mono text-[10px] bg-muted px-1.5 py-0.5 rounded uppercase tracking-tighter text-muted-foreground">
+                  #{sale.invoiceNo}
+                </span>
+                <span className="text-[10px] text-muted-foreground">•</span>
+                <span className="text-[10px] text-muted-foreground">{formatTableDate(sale.saleDate)}</span>
+              </div>
+              <div className="font-bold text-base truncate">{sale.clientName}</div>
+              <div className="text-xs text-muted-foreground truncate">{sale.serviceName}</div>
+            </div>
+            <div className="flex flex-col items-end gap-2">
+              <div className="font-bold text-lg italic text-primary leading-none">
+                {sale.totalTtc.toFixed(2)} €
+              </div>
+              <Badge
+                variant={statusVariant}
+                className={cn(
+                  "text-[10px] font-semibold px-2 py-0 h-5",
+                  sale.status === 'paid' && "bg-green-500/10 text-green-500 border-green-500/20"
+                )}
+              >
+                {statusLabel}
+              </Badge>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between pt-3 border-t border-muted/50">
+            <Badge variant="outline" className="text-[10px] font-normal opacity-70">
+              {sale.recurringType === 'mensuel' ? 'Mensuel' : sale.recurringType === 'annuel' ? 'Annuel' : 'Ponctuel'}
+            </Badge>
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="sm" className="h-8 px-2 text-xs font-medium hover:bg-primary/10">
+                  <MoreHorizontal className="h-4 w-4 mr-2" />
+                  Gérer
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuItem onClick={() => handleGenerateQuote(sale)}>
+                  <FileText className="mr-2 h-4 w-4" />
+                  Devis PDF
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleGenerateInvoice(sale)}>
+                  <Receipt className="mr-2 h-4 w-4" />
+                  Facture PDF
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleEdit(sale)}>
+                  <Edit className="mr-2 h-4 w-4" />
+                  Modifier
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleDelete(sale)} className="text-destructive font-semibold">
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Supprimer
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
+
   if (loading && sales.length === 0) {
     return (
       <div className="w-full min-w-0 py-4 sm:py-6 space-y-4">
@@ -633,270 +770,265 @@ export function SalesContent() {
         onGenerateQuote={handleGenerateQuote}
         onGenerateInvoice={handleGenerateInvoice}
         emptyMessage="Aucune vente. Cliquez sur Nouveau pour en créer une."
+        renderMobileItem={renderMobileItem}
       />
 
       {/* Dialog pour créer/modifier une vente */}
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="sm:max-w-3xl">
-          <DialogHeader>
-            <DialogTitle>
-              {editingSale ? 'Modifier la vente' : 'Nouvelle vente'}
-            </DialogTitle>
-          </DialogHeader>
-          
-          <form onSubmit={handleSubmit} className="space-y-6 py-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Colonne Gauche : Informations Générales */}
-              <div className="space-y-6">
-                <div className="bg-muted/30 p-4 rounded-lg border space-y-4">
-                  <h3 className="font-medium text-sm flex items-center gap-2 text-foreground/80">
-                    <FileText className="size-4" /> Informations Facture
-                  </h3>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="saleDate">Date</Label>
-                      <Input
-                        id="saleDate"
-                        type="date"
-                        value={formData.saleDate}
-                        onChange={(e) => setFormData(prev => ({ ...prev, saleDate: e.target.value }))}
-                        required
-                        className="bg-background"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="invoiceNo">N° Facture</Label>
-                      <Input
-                        id="invoiceNo"
-                        value={formData.invoiceNo}
-                        onChange={(e) => setFormData(prev => ({ ...prev, invoiceNo: e.target.value }))}
-                        placeholder="F2026-000001"
-                        maxLength={50}
-                        pattern="[A-Za-z0-9\-]+"
-                        title="Lettres, chiffres et tirets uniquement"
-                        required
-                        className="bg-background"
-                      />
-                    </div>
+      <ResponsiveDialog
+        open={isDialogOpen}
+        onOpenChange={setIsDialogOpen}
+        title={editingSale ? 'Modifier la vente' : 'Nouvelle vente'}
+        className="sm:max-w-3xl"
+      >
+        <form onSubmit={handleSubmit} className="space-y-6 py-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Colonne Gauche : Informations Générales */}
+            <div className="space-y-6">
+              <div className="bg-muted/30 p-4 rounded-lg border space-y-4">
+                <h3 className="font-medium text-sm flex items-center gap-2 text-foreground/80">
+                  <FileText className="size-4" /> Informations Facture
+                </h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="saleDate">Date</Label>
+                    <Input
+                      id="saleDate"
+                      type="date"
+                      value={formData.saleDate}
+                      onChange={(e) => setFormData(prev => ({ ...prev, saleDate: e.target.value }))}
+                      required
+                      className="bg-background"
+                    />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="status">Statut</Label>
-                    <Select
-                      value={formData.status}
-                      onValueChange={(value) => setFormData(prev => ({ ...prev, status: value }))}
-                    >
-                      <SelectTrigger className="bg-background">
-                        <SelectValue placeholder="Sélectionner le statut" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="paid">Payée</SelectItem>
-                        <SelectItem value="pending">En attente</SelectItem>
-                        <SelectItem value="cancelled">Annulée</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <Label htmlFor="invoiceNo">N° Facture</Label>
+                    <Input
+                      id="invoiceNo"
+                      value={formData.invoiceNo}
+                      onChange={(e) => setFormData(prev => ({ ...prev, invoiceNo: e.target.value }))}
+                      placeholder="F2026-000001"
+                      maxLength={50}
+                      pattern="[A-Za-z0-9\-]+"
+                      title="Lettres, chiffres et tirets uniquement"
+                      required
+                      className="bg-background"
+                    />
                   </div>
                 </div>
-
-                <div className="bg-muted/30 p-4 rounded-lg border space-y-4">
-                  <h3 className="font-medium text-sm flex items-center gap-2 text-foreground/80">
-                    <User className="size-4" /> Client
-                  </h3>
-                  <div className="space-y-2">
-                    <Label htmlFor="clientName">Client</Label>
-                    <Select value={formData.clientName} onValueChange={(value) => setFormData(prev => ({ ...prev, clientName: value }))}>
-                      <SelectTrigger aria-label="Sélectionner un client" className="bg-background">
-                        <SelectValue placeholder="Sélectionner un client" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {clients.length === 0 ? (
-                          <SelectItem value="no-clients" disabled>
-                            Aucun client disponible
-                          </SelectItem>
-                        ) : (
-                          clients.map((client) => (
-                            <SelectItem key={client.clientName ?? ''} value={client.clientName ?? ''}>
-                              {[client.firstName, client.lastName].filter(Boolean).join(' ') || client.clientName}
-                            </SelectItem>
-                          ))
-                        )}
-                      </SelectContent>
-                    </Select>
-                  </div>
+                <div className="space-y-2">
+                  <Label htmlFor="status">Statut</Label>
+                  <Select
+                    value={formData.status}
+                    onValueChange={(value) => setFormData(prev => ({ ...prev, status: value }))}
+                  >
+                    <SelectTrigger className="bg-background">
+                      <SelectValue placeholder="Sélectionner le statut" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="paid">Payée</SelectItem>
+                      <SelectItem value="pending">En attente</SelectItem>
+                      <SelectItem value="cancelled">Annulée</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
 
-              {/* Colonne Droite : Détails Service */}
-              <div className="space-y-6">
-                <div className="bg-muted/30 p-4 rounded-lg border space-y-4 h-full">
-                  <h3 className="font-medium text-sm flex items-center gap-2 text-foreground/80">
-                    <Package className="size-4" /> Service & Tarification
-                  </h3>
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="serviceName">Service</Label>
-                    <Select 
-                      value={formData.serviceName} 
-                      onValueChange={handleServiceChange}
-                    >
-                      <SelectTrigger aria-label="Sélectionner un service" className="bg-background">
-                        <SelectValue placeholder="Sélectionner un service" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {articles.map((article) => (
-                          <SelectItem key={article.serviceName} value={article.serviceName}>
-                            {article.serviceName}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="unitPriceHt">
-                        {formData.unitLabel === 'heure' ? 'Prix/h HT' : 'Prix unit. HT'}
-                      </Label>
-                      <Input
-                        id="unitPriceHt"
-                        type="number"
-                        step="0.01"
-                        value={formData.unitPriceHt}
-                        onChange={(e) => setFormData(prev => ({ ...prev, unitPriceHt: parseFloat(e.target.value) || 0 }))}
-                        required
-                        className="bg-background"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="quantity">
-                        {formData.unitLabel === 'heure' ? 'Heures *' : 'Quantité'}
-                      </Label>
-                      {formData.unitLabel === 'heure' ? (
-                        <Input
-                          id="quantity"
-                          type="text"
-                          inputMode="decimal"
-                          value={hoursInput}
-                          onChange={(e) => setHoursInput(e.target.value.replace(',', '.'))}
-                          onBlur={() => {
-                            const n = parseFloat(hoursInput.replace(',', '.'))
-                            if (!isNaN(n) && n >= 0.5) {
-                              setFormData(prev => ({ ...prev, quantity: n }))
-                              setHoursInput(String(n))
-                            }
-                          }}
-                          placeholder="Ex: 2.5"
-                          required
-                          className="bg-background"
-                        />
+              <div className="bg-muted/30 p-4 rounded-lg border space-y-4">
+                <h3 className="font-medium text-sm flex items-center gap-2 text-foreground/80">
+                  <User className="size-4" /> Client
+                </h3>
+                <div className="space-y-2">
+                  <Label htmlFor="clientName">Client</Label>
+                  <Select value={formData.clientName} onValueChange={(value) => setFormData(prev => ({ ...prev, clientName: value }))}>
+                    <SelectTrigger aria-label="Sélectionner un client" className="bg-background">
+                      <SelectValue placeholder="Sélectionner un client" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {clients.length === 0 ? (
+                        <SelectItem value="no-clients" disabled>
+                          Aucun client disponible
+                        </SelectItem>
                       ) : (
-                        <Input
-                          id="quantity"
-                          type="number"
-                          min={1}
-                          value={formData.quantity}
-                          onChange={(e) => setFormData(prev => ({ ...prev, quantity: parseInt(e.target.value) || 1 }))}
-                          required
-                          className="bg-background"
-                        />
+                        clients.map((client) => (
+                          <SelectItem key={client.clientName ?? ''} value={client.clientName ?? ''}>
+                            {[client.firstName, client.lastName].filter(Boolean).join(' ') || client.clientName}
+                          </SelectItem>
+                        ))
                       )}
-                    </div>
-                  </div>
-
-                  <div className="space-y-2 pt-2 border-t border-border/50">
-                    <Label htmlFor="recurringType">Récurrence</Label>
-                    <Select 
-                      value={formData.recurringType} 
-                      onValueChange={(value: 'ponctuel' | 'mensuel' | 'annuel') => setFormData(prev => ({ ...prev, recurringType: value }))}
-                    >
-                      <SelectTrigger className="bg-background">
-                        <SelectValue placeholder="Sélectionner la fréquence" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="ponctuel">Ponctuel (Une fois)</SelectItem>
-                        <SelectItem value="mensuel">Mensuel (Abonnement)</SelectItem>
-                        <SelectItem value="annuel">Annuel (Abonnement)</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  {formData.recurringType !== 'ponctuel' && (
-                    <div className="space-y-2">
-                      <Label htmlFor="endDate">Fin (Optionnel)</Label>
-                      <Input
-                        id="endDate"
-                        type="date"
-                        value={formData.endDate}
-                        onChange={(e) => setFormData(prev => ({ ...prev, endDate: e.target.value }))}
-                        className="bg-background"
-                      />
-                    </div>
-                  )}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
             </div>
 
-            {/* Section des options du service */}
-            {formData.serviceName && selectedServiceOptions.length > 0 && (
+            {/* Liste des Services (Items) */}
+            <div className="md:col-span-2 space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="font-bold text-base flex items-center gap-2 text-primary">
+                  <Package className="size-5" /> Articles & Services
+                </h3>
+                <Button type="button" variant="outline" size="sm" onClick={addLineItem} className="h-8 border-dashed border-primary/50 text-primary hover:bg-primary/5">
+                  <Plus className="size-4 mr-2" /> Ajouter un article
+                </Button>
+              </div>
+
               <div className="space-y-4">
-                <Label className="text-base font-medium">Options du service "{formData.serviceName}"</Label>
-                <div className="border rounded-lg p-4 bg-muted/30">
-                  <p className="text-sm text-muted-foreground mb-4">
-                    Sélectionnez les options à inclure dans cette vente :
-                  </p>
-                  <div className="space-y-3">
-                    {selectedServiceOptions.map((option) => (
-                      <div key={option.id} className="flex items-start space-x-3">
-                        <Checkbox
-                          id={option.id}
-                          checked={selectedOptions.includes(option.id)}
-                          onCheckedChange={() => handleOptionToggle(option.id)}
-                          className="mt-1"
-                        />
-                        <Label htmlFor={option.id} className="flex-1 cursor-pointer font-normal">
-                          <div className="flex justify-between items-start gap-4">
-                            <div>
-                              <span className="font-medium text-foreground">{option.name}</span>
-                              {option.description && (
-                                <p className="text-muted-foreground text-xs mt-0.5">{option.description}</p>
-                              )}
-                            </div>
-                            <span className="text-sm font-medium whitespace-nowrap">+{option.priceHt.toFixed(2)}€ HT</span>
-                          </div>
-                        </Label>
+                {formData.items.map((item, index) => (
+                  <div key={index} className="relative bg-muted/20 p-5 rounded-xl border border-primary/10 space-y-4 shadow-sm group">
+                    {formData.items.length > 1 && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="absolute -top-2 -right-2 h-7 w-7 rounded-full bg-destructive/10 text-destructive hover:bg-destructive shadow-sm opacity-0 group-hover:opacity-100 transition-opacity"
+                        onClick={() => removeLineItem(index)}
+                      >
+                        <Trash2 className="size-3.5" />
+                      </Button>
+                    )}
+
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                      <div className="md:col-span-2 space-y-2">
+                        <Label htmlFor={`service-${index}`}>Service / Article</Label>
+                        <Select
+                          value={item.serviceName}
+                          onValueChange={(val) => handleLineServiceChange(index, val)}
+                        >
+                          <SelectTrigger id={`service-${index}`} aria-label="Sélectionner un service" className="bg-background">
+                            <SelectValue placeholder="Sélectionner..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {articles.map((article) => (
+                              <SelectItem key={article.serviceName} value={article.serviceName}>
+                                {article.serviceName}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </div>
-                    ))}
-                  </div>
-                </div>
-                
-                {/* Résumé des options sélectionnées */}
-                {selectedOptions.length > 0 && (
-                  <div className="border rounded-lg p-4 bg-muted/50">
-                    <p className="text-sm font-medium text-foreground mb-3">Options sélectionnées :</p>
-                    <div className="space-y-2">
-                      {selectedServiceOptions
-                        .filter(option => selectedOptions.includes(option.id))
-                        .map((option) => (
-                          <div key={option.id} className="flex justify-between text-sm">
-                            <span>{option.name}</span>
-                            <span className="font-medium">+{option.priceHt.toFixed(2)}€ HT</span>
-                          </div>
-                        ))}
-                      <div className="border-t pt-2 mt-2">
-                        <div className="flex justify-between text-sm font-medium">
-                          <span>Total options HT :</span>
-                          <span>
-                            +{selectedServiceOptions
-                              .filter(option => selectedOptions.includes(option.id))
-                              .reduce((sum, option) => sum + option.priceHt, 0)
-                              .toFixed(2)}€
-                          </span>
+
+                      <div className="space-y-2">
+                        <Label htmlFor={`price-${index}`}>{item.unitLabel === 'heure' ? 'Prix/h HT' : 'Prix unit. HT'}</Label>
+                        <div className="relative">
+                          <Input
+                            id={`price-${index}`}
+                            type="number"
+                            step="0.01"
+                            value={item.unitPriceHt}
+                            onChange={(e) => updateLineItem(index, { unitPriceHt: parseFloat(e.target.value) || 0 })}
+                            className="bg-background pr-6"
+                          />
+                          <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground">€</span>
                         </div>
                       </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor={`qty-${index}`}>{item.unitLabel === 'heure' ? 'Heures' : 'Qté'}</Label>
+                        {item.unitLabel === 'heure' ? (
+                          <Input
+                            id={`qty-${index}`}
+                            type="text"
+                            inputMode="decimal"
+                            value={hoursInput[index]}
+                            onChange={(e) => {
+                              const val = e.target.value.replace(',', '.')
+                              const next = [...hoursInput]
+                              next[index] = val
+                              setHoursInput(next)
+                              const n = parseFloat(val)
+                              if (!isNaN(n) && n >= 0) updateLineItem(index, { quantity: n })
+                            }}
+                            className="bg-background"
+                          />
+                        ) : (
+                          <Input
+                            id={`qty-${index}`}
+                            type="number"
+                            min={1}
+                            value={item.quantity}
+                            onChange={(e) => updateLineItem(index, { quantity: parseInt(e.target.value) || 1 })}
+                            className="bg-background"
+                          />
+                        )}
+                      </div>
                     </div>
+
+                    {/* Options pour cet item */}
+                    {item.serviceOptions.length > 0 && (
+                      <div className="pt-2 border-t border-primary/5 space-y-3">
+                        <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60">Options Disponibles</div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          {item.serviceOptions.map((opt) => (
+                            <div key={opt.id} className="flex items-center space-x-2 bg-background/50 p-2 rounded-lg border border-transparent hover:border-primary/20 transition-colors">
+                              <Checkbox
+                                id={`opt-${index}-${opt.id}`}
+                                checked={item.selectedOptions.includes(opt.id)}
+                                onCheckedChange={() => handleLineOptionToggle(index, opt.id)}
+                              />
+                              <Label htmlFor={`opt-${index}-${opt.id}`} className="flex-1 text-xs cursor-pointer truncate">
+                                {opt.name} <span className="text-[10px] text-muted-foreground ml-1">(+{opt.priceHt}€)</span>
+                              </Label>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {/* Résumé des totaux */}
+              <div className="bg-primary/5 p-4 rounded-xl border border-primary/20 flex flex-col items-end gap-1">
+                <div className="text-xs text-muted-foreground">Total HT Estimé</div>
+                <div className="text-2xl font-bold text-primary italic">
+                  {formData.items.reduce((s, item, i) => {
+                    const q = item.unitLabel === 'heure' ? (parseFloat(hoursInput[i]) || 0) : item.quantity
+                    const optTotal = item.serviceOptions
+                      .filter(o => item.selectedOptions.includes(o.id))
+                      .reduce((sum, o) => sum + o.priceHt, 0)
+                    return s + (q * (item.unitPriceHt + optTotal))
+                  }, 0).toFixed(2)} €
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t">
+            <div className="space-y-4">
+              <h3 className="font-medium text-sm flex items-center gap-2 text-foreground/80">
+                <Receipt className="size-4" /> Récurrence & Fin
+              </h3>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="recurringType">Plan</Label>
+                  <Select
+                    value={formData.recurringType}
+                    onValueChange={(value: 'ponctuel' | 'mensuel' | 'annuel') => setFormData(prev => ({ ...prev, recurringType: value }))}
+                  >
+                    <SelectTrigger className="bg-background">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ponctuel">Une fois</SelectItem>
+                      <SelectItem value="mensuel">Mensuel</SelectItem>
+                      <SelectItem value="annuel">Annuel</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                {formData.recurringType !== 'ponctuel' && (
+                  <div className="space-y-2">
+                    <Label htmlFor="endDate">Date de fin</Label>
+                    <Input
+                      id="endDate"
+                      type="date"
+                      value={formData.endDate}
+                      onChange={(e) => setFormData(prev => ({ ...prev, endDate: e.target.value }))}
+                      className="bg-background"
+                    />
                   </div>
                 )}
               </div>
-            )}
+            </div>
 
             {/* Section pour lier des charges */}
             {charges.length > 0 && (
@@ -915,7 +1047,7 @@ export function SalesContent() {
                           onCheckedChange={() => handleChargeToggle(String(charge.id))}
                           className="mt-1"
                         />
-                        <Label 
+                        <Label
                           htmlFor={`charge-${charge.id}`}
                           className="flex-1 cursor-pointer text-sm font-normal"
                         >
@@ -936,7 +1068,7 @@ export function SalesContent() {
                     ))}
                   </div>
                 </div>
-                
+
                 {/* Résumé des charges sélectionnées */}
                 {formData.linkedCharges.length > 0 && (
                   <div className="border rounded-lg p-4 bg-muted/50">
@@ -957,18 +1089,18 @@ export function SalesContent() {
                 )}
               </div>
             )}
+          </div>
 
-            <div className="flex justify-end space-x-2 pt-6 border-t">
-              <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
-                Annuler
-              </Button>
-              <Button type="submit">
-                {editingSale ? 'Modifier' : 'Créer'}
-              </Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
+          <div className="flex justify-end space-x-2 pt-6 border-t">
+            <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
+              Annuler
+            </Button>
+            <Button type="submit">
+              {editingSale ? 'Modifier' : 'Créer'}
+            </Button>
+          </div>
+        </form>
+      </ResponsiveDialog>
     </div>
   )
 }

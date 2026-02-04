@@ -4,13 +4,13 @@ import { useState, useEffect, useMemo } from 'react'
 import useSWR from 'swr'
 import { DataTable, Column } from '@/components/ui/data-table'
 import { Button } from '@/components/ui/button'
-import { Card } from '@/components/ui/card'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { ResponsiveDialog } from '@/components/responsive-dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Columns3, User, Building2 } from 'lucide-react'
+import { Columns3, User, Building2, Edit, Trash2 } from 'lucide-react'
 import { electronFetch } from '@/lib/electron-api'
 import { toast } from 'sonner'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -180,7 +180,7 @@ export function ClientsContent() {
     setColumnVisibility(next)
     try {
       window.localStorage.setItem(CLIENTS_COLUMNS_STORAGE_KEY, JSON.stringify(next))
-    } catch {}
+    } catch { }
   }
 
   const toggleColumn = (key: string) => {
@@ -292,6 +292,68 @@ export function ClientsContent() {
     </Popover>
   )
 
+  const renderMobileItem = (client: Client) => {
+    const displayName = [client.firstName, client.lastName].filter(Boolean).join(' ') || client.clientName || '—'
+    const initials = getInitials(client.firstName, client.lastName) || (client.clientName?.slice(0, 2).toUpperCase() ?? '')
+
+    return (
+      <Card className="group relative overflow-hidden transition-all hover:ring-1 hover:ring-primary/20 border-primary/5 bg-gradient-to-b from-background/80 to-muted/20">
+        <div className="absolute top-0 left-0 w-1 h-full bg-primary" />
+        <CardContent className="p-4 space-y-4">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex items-center gap-3 min-w-0">
+              <Avatar className="h-12 w-12 shrink-0 rounded-xl border-2 border-background shadow-sm">
+                <AvatarImage src={undefined} alt={displayName} />
+                <AvatarFallback className="rounded-xl text-base font-bold bg-primary/10 text-primary">
+                  {initials || '?'}
+                </AvatarFallback>
+              </Avatar>
+              <div className="min-w-0">
+                <div className="font-bold text-base truncate leading-tight">{displayName}</div>
+                {client.company ? (
+                  <div className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
+                    <Building2 className="h-3 w-3" />
+                    <span className="truncate">{client.company}</span>
+                  </div>
+                ) : (
+                  <div className="text-[10px] text-muted-foreground/60 italic mt-0.5">Particulier</div>
+                )}
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-1 shrink-0">
+              <Button size="icon" variant="ghost" className="h-8 w-8 rounded-lg hover:bg-primary/10 hover:text-primary" onClick={() => handleEdit(client)}>
+                <Edit className="h-4 w-4" />
+              </Button>
+              <Button size="icon" variant="ghost" className="h-8 w-8 rounded-lg text-destructive hover:bg-destructive/10" onClick={() => handleDelete(client)}>
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-2 p-2.5 rounded-lg bg-background/40 border border-primary/5 text-xs">
+            <div className="flex items-center justify-between gap-2 overflow-hidden px-1">
+              <span className="text-muted-foreground font-semibold uppercase tracking-wider text-[10px]">Email</span>
+              {client.email ? (
+                <a href={`mailto:${client.email}`} className="text-primary font-medium truncate hover:underline">
+                  {client.email}
+                </a>
+              ) : <span className="text-muted-foreground/40 italic">Non renseigné</span>}
+            </div>
+            <div className="flex items-center justify-between gap-2 overflow-hidden px-1">
+              <span className="text-muted-foreground font-semibold uppercase tracking-wider text-[10px]">Mobile</span>
+              {client.phone ? (
+                <a href={`tel:${client.phone}`} className="text-primary font-medium truncate hover:underline">
+                  {client.phone}
+                </a>
+              ) : <span className="text-muted-foreground/40 italic">Non renseigné</span>}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
+
   if (loading && clients.length === 0) {
     return (
       <div className="w-full min-w-0 py-4 sm:py-6 space-y-4">
@@ -335,7 +397,7 @@ export function ClientsContent() {
           </p>
         </div>
       </Card>
-      
+
       <DataTable
         data={clients}
         columns={visibleColumns}
@@ -347,124 +409,122 @@ export function ClientsContent() {
         searchPlaceholder="Rechercher un client..."
         emptyMessage="Aucun client. Créez votre premier client."
         virtualized
+        renderMobileItem={renderMobileItem}
       />
 
       {/* Add/Edit Client Dialog */}
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="sm:max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>
-              {editingClient ? 'Modifier le client' : 'Nouveau client'}
-            </DialogTitle>
-          </DialogHeader>
-          
-          <form onSubmit={(e) => { e.preventDefault(); handleSave() }} className="space-y-6 py-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Colonne Gauche : Identité */}
-              <div className="space-y-6">
-                <div className="bg-muted/30 p-4 rounded-lg border space-y-4 h-full">
-                  <h3 className="font-medium text-sm flex items-center gap-2 text-foreground/80">
-                    <User className="size-4" /> Identité
-                  </h3>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="firstName">Prénom *</Label>
-                      <Input
-                        id="firstName"
-                        value={formData.firstName || ''}
-                        onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
-                        placeholder="Prénom"
-                        autoFocus
-                        className="bg-background"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="lastName">Nom *</Label>
-                      <Input
-                        id="lastName"
-                        value={formData.lastName || ''}
-                        onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
-                        placeholder="Nom"
-                        className="bg-background"
-                      />
-                    </div>
-                  </div>
-                  
+      <ResponsiveDialog
+        open={isDialogOpen}
+        onOpenChange={setIsDialogOpen}
+        title={editingClient ? 'Modifier le client' : 'Nouveau client'}
+        className="sm:max-w-2xl"
+      >
+        <form onSubmit={(e) => { e.preventDefault(); handleSave() }} className="space-y-6 py-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Colonne Gauche : Identité */}
+            <div className="space-y-6">
+              <div className="bg-muted/30 p-4 rounded-lg border space-y-4 h-full">
+                <h3 className="font-medium text-sm flex items-center gap-2 text-foreground/80">
+                  <User className="size-4" /> Identité
+                </h3>
+                <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="email">Email</Label>
+                    <Label htmlFor="firstName">Prénom *</Label>
                     <Input
-                      id="email"
-                      type="email"
-                      value={formData.email || ''}
-                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                      placeholder="email@exemple.com"
+                      id="firstName"
+                      value={formData.firstName || ''}
+                      onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
+                      placeholder="Prénom"
+                      autoFocus
+                      className="bg-background"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="lastName">Nom *</Label>
+                    <Input
+                      id="lastName"
+                      value={formData.lastName || ''}
+                      onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
+                      placeholder="Nom"
+                      className="bg-background"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="email">Email</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    value={formData.email || ''}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    placeholder="email@exemple.com"
+                    className="bg-background"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Colonne Droite : Coordonnées */}
+            <div className="space-y-6">
+              <div className="bg-muted/30 p-4 rounded-lg border space-y-4 h-full">
+                <h3 className="font-medium text-sm flex items-center gap-2 text-foreground/80">
+                  <Building2 className="size-4" /> Coordonnées
+                </h3>
+
+                <div className="space-y-2">
+                  <Label htmlFor="company">Entreprise</Label>
+                  <Input
+                    id="company"
+                    value={formData.company || ''}
+                    onChange={(e) => setFormData({ ...formData, company: e.target.value })}
+                    placeholder="Nom de l'entreprise"
+                    className="bg-background"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="phone">Téléphone</Label>
+                    <Input
+                      id="phone"
+                      value={formData.phone || ''}
+                      onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                      placeholder="06 12 34 56 78"
+                      className="bg-background"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="website">Site web</Label>
+                    <Input
+                      id="website"
+                      type="url"
+                      value={formData.website || ''}
+                      onChange={(e) => setFormData({ ...formData, website: e.target.value })}
+                      placeholder="https://..."
                       className="bg-background"
                     />
                   </div>
                 </div>
               </div>
-
-              {/* Colonne Droite : Coordonnées */}
-              <div className="space-y-6">
-                <div className="bg-muted/30 p-4 rounded-lg border space-y-4 h-full">
-                  <h3 className="font-medium text-sm flex items-center gap-2 text-foreground/80">
-                    <Building2 className="size-4" /> Coordonnées
-                  </h3>
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="company">Entreprise</Label>
-                    <Input
-                      id="company"
-                      value={formData.company || ''}
-                      onChange={(e) => setFormData({ ...formData, company: e.target.value })}
-                      placeholder="Nom de l'entreprise"
-                      className="bg-background"
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="phone">Téléphone</Label>
-                      <Input
-                        id="phone"
-                        value={formData.phone || ''}
-                        onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                        placeholder="06 12 34 56 78"
-                        className="bg-background"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="website">Site web</Label>
-                      <Input
-                        id="website"
-                        type="url"
-                        value={formData.website || ''}
-                        onChange={(e) => setFormData({ ...formData, website: e.target.value })}
-                        placeholder="https://..."
-                        className="bg-background"
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
             </div>
+          </div>
 
-            {saveError && (
-              <p className="text-sm text-destructive bg-destructive/10 rounded-md px-3 py-2">
-                {saveError}
-              </p>
-            )}
-            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end sm:space-x-2 pt-4">
-              <Button variant="outline" type="button" onClick={() => { setIsDialogOpen(false); setSaveError(null) }}>
-                Annuler
-              </Button>
-              <Button type="submit">
-                {editingClient ? 'Modifier' : 'Créer'}
-              </Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
+          {saveError && (
+            <p className="text-sm text-destructive bg-destructive/10 rounded-md px-3 py-2">
+              {saveError}
+            </p>
+          )}
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end sm:space-x-2 pt-4">
+            <Button variant="outline" type="button" onClick={() => { setIsDialogOpen(false); setSaveError(null) }}>
+              Annuler
+            </Button>
+            <Button type="submit">
+              {editingClient ? 'Modifier' : 'Créer'}
+            </Button>
+          </div>
+        </form>
+      </ResponsiveDialog>
     </div>
   )
 }

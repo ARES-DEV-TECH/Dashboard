@@ -31,12 +31,17 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover'
 import { Badge } from '@/components/ui/badge'
 import { electronFetch } from '@/lib/electron-api'
 import { toast } from 'sonner'
 import { mutate } from 'swr'
 import { SWR_KEYS } from '@/lib/swr-fetchers'
-import { formatTableDate } from '@/lib/utils'
+import { formatTableDate, cn } from '@/lib/utils'
 
 export type RecentSale = {
   id: string
@@ -46,10 +51,11 @@ export type RecentSale = {
   status: string
   date: string
   frequency: string
+  items?: any[]
 }
 
 const updateStatus = async (invoiceNo: string, newStatus: string) => {
-  type SalesCache = { sales?: { invoiceNo: string; status?: string; [k: string]: unknown }[]; pagination?: unknown } | undefined
+  type SalesCache = { sales?: { invoiceNo: string; status?: string;[k: string]: unknown }[]; pagination?: unknown } | undefined
   let previousSales: SalesCache
   let previousSalesList: SalesCache
 
@@ -129,7 +135,52 @@ const columns: ColumnDef<RecentSale>[] = [
   {
     accessorKey: 'service',
     header: 'Service',
-    cell: ({ row }) => <div>{row.getValue('service') ?? '—'}</div>,
+    cell: ({ row }) => {
+      const sale = row.original
+      const items = sale.items || []
+
+      if (items.length === 0) {
+        return <div className="max-w-[200px] truncate">{sale.service ?? '—'}</div>
+      }
+
+      return (
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button variant="link" className="h-auto p-0 text-left font-normal text-foreground hover:text-primary transition-colors max-w-[200px] truncate block">
+              {sale.service}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-80 p-0 overflow-hidden shadow-xl border-primary/20" align="start">
+            <div className="bg-primary/5 px-3 py-2 border-b border-primary/10">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-primary/70 italic flex items-center gap-2">
+                <Inbox className="size-3" /> Détails de la facturation
+              </div>
+            </div>
+            <div className="max-h-[300px] overflow-y-auto p-2 space-y-1">
+              {items.map((item: any, i: number) => (
+                <div key={i} className="flex justify-between items-start gap-3 p-2 rounded-md hover:bg-muted/50 transition-colors border border-transparent hover:border-border">
+                  <div className="min-w-0">
+                    <div className="text-xs font-bold leading-tight">{item.serviceName}</div>
+                    <div className="text-[10px] text-muted-foreground mt-0.5">
+                      {item.unitLabel === 'heure' ? `${item.quantity} h × ${item.unitPriceHt}€` : `${item.quantity} × ${item.unitPriceHt}€`}
+                    </div>
+                  </div>
+                  <div className="text-xs font-bold text-primary italic whitespace-nowrap">
+                    {(item.quantity * (item.unitPriceHt + (item.optionsTotalHt || 0))).toFixed(2)}€
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="bg-muted/30 p-2 border-t flex justify-between items-center px-4 py-2.5">
+              <span className="text-[10px] font-semibold text-muted-foreground uppercase">Total HT</span>
+              <span className="text-sm font-black text-primary italic">
+                {items.reduce((sum, item) => sum + (item.quantity * (item.unitPriceHt + (item.optionsTotalHt || 0))), 0).toFixed(2)} €
+              </span>
+            </div>
+          </PopoverContent>
+        </Popover>
+      )
+    },
   },
   {
     accessorKey: 'date',
@@ -209,7 +260,11 @@ const columns: ColumnDef<RecentSale>[] = [
   },
 ]
 
+import { useIsMobile } from '@/hooks/use-mobile'
+import { Card, CardContent } from '@/components/ui/card'
+
 export function DashboardRecentSalesTable({ data }: { data: RecentSale[] }) {
+  const isMobile = useIsMobile()
   const [sorting, setSorting] = React.useState<SortingState>([])
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
 
@@ -223,8 +278,155 @@ export function DashboardRecentSalesTable({ data }: { data: RecentSale[] }) {
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     state: { sorting, columnFilters },
+    initialState: {
+      pagination: {
+        pageSize: 5,
+      },
+    },
   })
 
+  // Vue Mobile (Cartes)
+  if (isMobile) {
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center gap-2">
+          <div className="relative w-full">
+            <Input
+              placeholder="Rechercher un client..."
+              value={(table.getColumn('client')?.getFilterValue() as string) ?? ''}
+              onChange={(e) => table.getColumn('client')?.setFilterValue(e.target.value)}
+              className="w-full bg-background/50 pl-9"
+            />
+            <ChevronDown className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+          </div>
+        </div>
+
+        {table.getRowModel().rows.length === 0 ? (
+          <div className="flex flex-col items-center gap-2 py-12 text-center text-muted-foreground border-2 border-dashed rounded-xl border-muted">
+            <Inbox className="h-10 w-10 opacity-20" />
+            <p className="text-sm">Aucune vente trouvée.</p>
+          </div>
+        ) : (
+          <div className="grid gap-4">
+            {table.getRowModel().rows.map((row) => {
+              const sale = row.original
+              const statusVariant = sale.status === 'Payée'
+                ? 'default'
+                : sale.status === 'En retard' || sale.status === 'Annulée'
+                  ? 'destructive'
+                  : 'secondary'
+
+              return (
+                <Card
+                  key={row.id}
+                  className="group relative overflow-hidden transition-all hover:ring-1 hover:ring-primary/20 border-primary/5 bg-gradient-to-b from-background/80 to-muted/20"
+                >
+                  <div
+                    className={cn(
+                      "absolute top-0 left-0 w-1 h-full",
+                      statusVariant === 'default' ? "bg-green-500" : statusVariant === 'destructive' ? "bg-red-500" : "bg-orange-500"
+                    )}
+                  />
+                  <CardContent className="p-4">
+                    <div className="flex items-start justify-between gap-4 mb-3">
+                      <div className="min-w-0 flex-1">
+                        <div className="font-bold text-base truncate mb-0.5">{sale.client}</div>
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <span className="font-mono bg-muted px-1.5 py-0.5 rounded uppercase tracking-tighter">#{sale.id}</span>
+                          <span className="shrink-0">•</span>
+                          <span className="whitespace-nowrap">{formatTableDate(sale.date)}</span>
+                        </div>
+                      </div>
+                      <Badge
+                        variant={statusVariant}
+                        className={cn(
+                          "shrink-0 font-semibold shadow-sm",
+                          sale.status === 'Payée' && "bg-green-500/10 text-green-500 hover:bg-green-500/20 border-green-500/20"
+                        )}
+                      >
+                        {sale.status}
+                      </Badge>
+                    </div>
+
+                    <div className="flex items-center justify-between gap-2 p-2.5 rounded-lg bg-background/40 border border-primary/5">
+                      <div className="min-w-0">
+                        <div className="text-xs text-muted-foreground uppercase tracking-wider font-semibold mb-0.5">Service</div>
+                        <div className="text-sm font-medium truncate">{sale.service || '—'}</div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-xs text-muted-foreground uppercase tracking-wider font-semibold mb-0.5 text-right">Montant</div>
+                        <div className="text-base font-bold text-primary italic">
+                          {new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(sale.amount)}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="mt-4 flex items-center justify-between">
+                      <Badge variant="secondary" className="bg-muted text-[10px] uppercase font-bold tracking-widest px-2 py-0">
+                        {sale.frequency || 'Ponctuel'}
+                      </Badge>
+
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="outline" size="sm" className="h-8 text-xs font-semibold hover:bg-primary hover:text-primary-foreground transition-colors group">
+                            Actions
+                            <MoreHorizontal className="size-3 ml-2 group-hover:rotate-90 transition-transform" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-48">
+                          <DropdownMenuLabel>Modifier statut</DropdownMenuLabel>
+                          <DropdownMenuItem onClick={() => updateStatus(sale.id, 'paid')} className="cursor-pointer">
+                            <div className="size-2 rounded-full bg-green-500 mr-2" />
+                            Marquer Payée
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => updateStatus(sale.id, 'pending')} className="cursor-pointer">
+                            <div className="size-2 rounded-full bg-orange-500 mr-2" />
+                            Marquer En attente
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => updateStatus(sale.id, 'cancelled')} className="cursor-pointer">
+                            <div className="size-2 rounded-full bg-red-500 mr-2" />
+                            Marquer Annulée
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                  </CardContent>
+                </Card>
+              )
+            })}
+          </div>
+        )}
+
+        <div className="flex items-center justify-between pt-4 border-t border-muted/30">
+          <div className="text-xs text-muted-foreground italic">
+            Page {table.getState().pagination.pageIndex + 1} / {table.getPageCount()}
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 font-bold"
+              onClick={() => table.previousPage()}
+              disabled={!table.getCanPreviousPage()}
+            >
+              Précédent
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 font-bold"
+              onClick={() => table.nextPage()}
+              disabled={!table.getCanNextPage()}
+            >
+              Suivant
+            </Button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // Vue Desktop (Tableau)
   return (
     <div className="w-full">
       <div className="flex items-center py-4">

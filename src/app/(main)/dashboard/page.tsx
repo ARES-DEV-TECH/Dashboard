@@ -20,7 +20,7 @@ const DashboardPageClient = dynamic(
 function mapToPresetDashboardData(
   payload: Awaited<ReturnType<typeof import('./use-dashboard-data').dashboardFetcher>>,
   comparisonData: { variations?: Record<string, { percentage?: number; trend?: 'up' | 'down' | 'neutral' | 'stable' }> } | null,
-  recentSales: Array<{ invoiceNo: string; clientName: string; serviceName?: string; totalTtc: number; saleDate: string; status?: unknown; recurring?: boolean; recurringType?: string | null }>
+  recentSales: Array<{ invoiceNo: string; clientName: string; serviceName?: string; totalTtc: number; saleDate: string; status?: unknown; recurring?: boolean; recurringType?: string | null; items?: string | any[] }>
 ): DashboardData | null {
   if (!payload?.data?.kpis) return null
   const d = payload.data
@@ -81,7 +81,7 @@ function mapToPresetDashboardData(
       { type: 'Récurrentes', amount: payload.chargesData?.totals?.breakdown?.recurring ?? 0, fill: 'var(--chart-1)' },
       { type: 'Ponctuelles', amount: payload.chargesData?.totals?.breakdown?.oneTime ?? 0, fill: 'var(--chart-2)' },
     ],
-    recentSales: recentSales.slice(0, 10).map((s) => {
+    recentSales: recentSales.map((s) => {
       const statusStr = String(s.status ?? 'paid')
       return {
         id: s.invoiceNo,
@@ -91,6 +91,7 @@ function mapToPresetDashboardData(
         status: statusStr === 'paid' ? 'Payée' : statusStr === 'pending' ? 'En attente' : statusStr === 'cancelled' ? 'Annulée' : statusStr,
         date: s.saleDate?.split('T')[0] ?? '',
         frequency: s.recurring ? (s.recurringType === 'mensuel' ? 'Mensuel' : s.recurringType === 'annuel' ? 'Annuel' : 'Ponctuel') : 'Ponctuel',
+        items: typeof s.items === 'string' ? JSON.parse(s.items) : s.items,
       }
     }),
     servicesData: {

@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from 'react'
 import useSWR from 'swr'
 import { DataTable, Column } from '@/components/ui/data-table'
 import { Button } from '@/components/ui/button'
+import { ResponsiveDialog } from '@/components/responsive-dialog'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -13,11 +14,13 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Textarea } from '@/components/ui/textarea'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { Settings, Plus, Trash2, Columns3, Package, Banknote } from 'lucide-react'
+import { Settings, Plus, Trash2, Columns3, Package, Banknote, Edit, MoreHorizontal } from 'lucide-react'
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@/components/ui/dropdown-menu'
 import { Article } from '@/lib/validations'
 import { generateCSV, downloadCSV } from '@/lib/csv'
 import { electronFetch } from '@/lib/electron-api'
 import { toast } from 'sonner'
+import { cn } from '@/lib/utils'
 import { Skeleton } from '@/components/ui/skeleton'
 import { SWR_KEYS, fetchArticles } from '@/lib/swr-fetchers'
 import { SWR_LIST_OPTIONS } from '@/lib/swr-config'
@@ -235,7 +238,7 @@ export function ArticlesContent() {
     setColumnVisibility(next)
     try {
       window.localStorage.setItem(ARTICLES_COLUMNS_STORAGE_KEY, JSON.stringify(next))
-    } catch {}
+    } catch { }
   }
 
   const toggleColumn = (key: string) => {
@@ -337,6 +340,70 @@ export function ArticlesContent() {
     </Popover>
   )
 
+  const renderMobileItem = (article: Article) => {
+    return (
+      <Card className="group relative overflow-hidden transition-all hover:ring-1 hover:ring-primary/20 border-primary/5 bg-gradient-to-b from-background/80 to-muted/20">
+        <div className="absolute top-0 left-0 w-1 h-full bg-primary" />
+        <CardContent className="p-4 space-y-4">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="p-3 bg-primary/10 rounded-xl text-primary shadow-inner shrink-0">
+                <Package className="h-6 w-6" />
+              </div>
+              <div className="min-w-0">
+                <div className="font-bold text-base truncate leading-tight">{article.serviceName}</div>
+                <div className="flex items-center gap-2 mt-1">
+                  <Badge variant={article.type === 'service' ? 'default' : 'secondary'} className="text-[10px] h-4 px-1.5 font-bold uppercase tracking-wider">
+                    {article.type === 'service' ? 'Service' : 'Produit'}
+                  </Badge>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex flex-col items-end gap-1 shrink-0">
+              <div className="font-bold text-lg italic text-primary leading-none">
+                {article.priceHt.toFixed(2)} €
+              </div>
+              <span className="text-[10px] font-medium text-muted-foreground uppercase">
+                {article.billByHour ? 'HT / Heure' : 'HT / Forfait'}
+              </span>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between pt-3 border-t border-muted/50">
+            <Badge variant="outline" className="text-[10px] font-normal opacity-70">
+              {article.billingFrequency === 'annuel' ? 'Facturation Annuelle' : article.billingFrequency === 'mensuel' ? 'Facturation Mensuelle' : 'Facturation Ponctuelle'}
+            </Badge>
+
+            <div className="flex items-center gap-1">
+              <Button variant="ghost" size="sm" className="h-8 px-2 text-xs font-medium hover:bg-primary/10" onClick={() => handleOpenOptionsDialog(article)}>
+                <Settings className="w-3.5 h-3.5 mr-1.5" />
+                Options
+              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                    <MoreHorizontal className="size-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => handleEdit(article)}>
+                    <Edit className="mr-2 h-4 w-4" />
+                    Modifier
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleDelete(article)} className="text-destructive">
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Supprimer
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
+
   if (loading && articles.length === 0) {
     return (
       <div className="w-full min-w-0 py-4 sm:py-6 space-y-4">
@@ -380,7 +447,7 @@ export function ArticlesContent() {
           </p>
         </div>
       </Card>
-      
+
       <DataTable
         data={articles}
         columns={visibleColumns}
@@ -392,123 +459,122 @@ export function ArticlesContent() {
         searchPlaceholder="Rechercher un article..."
         emptyMessage="Aucun article. Créez votre premier service."
         virtualized
+        renderMobileItem={renderMobileItem}
       />
 
       {/* Add/Edit Article Dialog */}
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>
-              {editingArticle ? 'Modifier l\'article' : 'Nouvel article'}
-            </DialogTitle>
-          </DialogHeader>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 py-4">
-            <div className="space-y-6">
-              <div className="bg-muted/30 p-4 rounded-lg border space-y-4 h-full">
-                <h3 className="font-medium text-sm flex items-center gap-2 text-foreground/80">
-                  <Package className="size-4" /> Détails
-                </h3>
-                
+      <ResponsiveDialog
+        open={isDialogOpen}
+        onOpenChange={setIsDialogOpen}
+        title={editingArticle ? 'Modifier l\'article' : 'Nouvel article'}
+      >
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 py-4">
+          <div className="space-y-6">
+            <div className="bg-muted/30 p-4 rounded-lg border space-y-4 h-full">
+              <h3 className="font-medium text-sm flex items-center gap-2 text-foreground/80">
+                <Package className="size-4" /> Détails
+              </h3>
+
+              <div className="space-y-2">
+                <Label htmlFor="serviceName">Nom du service *</Label>
+                <Input
+                  id="serviceName"
+                  value={formData.serviceName || ''}
+                  onChange={(e) => setFormData({ ...formData, serviceName: e.target.value })}
+                  placeholder="Nom du service"
+                  className="bg-background"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="type">Type</Label>
+                <Select
+                  value={formData.type || 'service'}
+                  onValueChange={(value) => setFormData({ ...formData, type: value as 'service' | 'produit' })}
+                >
+                  <SelectTrigger aria-label="Type d'article" className="bg-background">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="service">Service</SelectItem>
+                    <SelectItem value="produit">Produit</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-6">
+            <div className="bg-muted/30 p-4 rounded-lg border space-y-4 h-full">
+              <h3 className="font-medium text-sm flex items-center gap-2 text-foreground/80">
+                <Banknote className="size-4" /> Tarification
+              </h3>
+
+              <div className="space-y-4">
+                <div className="flex items-center space-x-2 bg-background p-2 rounded border">
+                  <Checkbox
+                    id="billByHour"
+                    checked={!!formData.billByHour}
+                    onCheckedChange={(checked) => setFormData({ ...formData, billByHour: !!checked })}
+                  />
+                  <Label htmlFor="billByHour" className="cursor-pointer flex-1">
+                    Facturer à l&apos;heure
+                  </Label>
+                </div>
+
+                {formData.billByHour && (
+                  <p className="text-xs text-muted-foreground bg-blue-500/10 text-blue-600 rounded px-2 py-1.5 border border-blue-200 dark:border-blue-900">
+                    Le nombre d&apos;heures sera demandé lors de la vente.
+                  </p>
+                )}
+
                 <div className="space-y-2">
-                  <Label htmlFor="serviceName">Nom du service *</Label>
+                  <Label htmlFor="priceHt">
+                    {formData.billByHour ? 'Prix HT par heure *' : 'Prix HT (forfait) *'}
+                  </Label>
                   <Input
-                    id="serviceName"
-                    value={formData.serviceName || ''}
-                    onChange={(e) => setFormData({ ...formData, serviceName: e.target.value })}
-                    placeholder="Nom du service"
+                    id="priceHt"
+                    type="number"
+                    step="0.01"
+                    value={formData.priceHt ?? ''}
+                    onChange={(e) => setFormData({ ...formData, priceHt: parseFloat(e.target.value) || 0 })}
+                    placeholder={formData.billByHour ? 'Ex: 85' : 'Ex: 500'}
                     className="bg-background"
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="type">Type</Label>
+                  <Label htmlFor="billingFrequency">Régularité (Dashboard)</Label>
                   <Select
-                    value={formData.type || 'service'}
-                    onValueChange={(value) => setFormData({ ...formData, type: value as 'service' | 'produit' })}
+                    value={formData.billingFrequency || 'ponctuel'}
+                    onValueChange={(value) => setFormData({ ...formData, billingFrequency: value as 'annuel' | 'mensuel' | 'ponctuel' })}
                   >
-                    <SelectTrigger aria-label="Type d'article" className="bg-background">
-                      <SelectValue />
+                    <SelectTrigger aria-label="Régularité de facturation" className="bg-background">
+                      <SelectValue placeholder="Pour le dashboard" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="service">Service</SelectItem>
-                      <SelectItem value="produit">Produit</SelectItem>
+                      <SelectItem value="ponctuel">Ponctuel</SelectItem>
+                      <SelectItem value="mensuel">Mensuel (x12)</SelectItem>
+                      <SelectItem value="annuel">Annuel</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
               </div>
             </div>
-
-            <div className="space-y-6">
-              <div className="bg-muted/30 p-4 rounded-lg border space-y-4 h-full">
-                <h3 className="font-medium text-sm flex items-center gap-2 text-foreground/80">
-                  <Banknote className="size-4" /> Tarification
-                </h3>
-                
-                <div className="space-y-4">
-                  <div className="flex items-center space-x-2 bg-background p-2 rounded border">
-                    <Checkbox
-                      id="billByHour"
-                      checked={!!formData.billByHour}
-                      onCheckedChange={(checked) => setFormData({ ...formData, billByHour: !!checked })}
-                    />
-                    <Label htmlFor="billByHour" className="cursor-pointer flex-1">
-                      Facturer à l&apos;heure
-                    </Label>
-                  </div>
-                  
-                  {formData.billByHour && (
-                    <p className="text-xs text-muted-foreground bg-blue-500/10 text-blue-600 rounded px-2 py-1.5 border border-blue-200 dark:border-blue-900">
-                      Le nombre d&apos;heures sera demandé lors de la vente.
-                    </p>
-                  )}
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="priceHt">
-                      {formData.billByHour ? 'Prix HT par heure *' : 'Prix HT (forfait) *'}
-                    </Label>
-                    <Input
-                      id="priceHt"
-                      type="number"
-                      step="0.01"
-                      value={formData.priceHt ?? ''}
-                      onChange={(e) => setFormData({ ...formData, priceHt: parseFloat(e.target.value) || 0 })}
-                      placeholder={formData.billByHour ? 'Ex: 85' : 'Ex: 500'}
-                      className="bg-background"
-                    />
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="billingFrequency">Régularité (Dashboard)</Label>
-                    <Select
-                      value={formData.billingFrequency || 'ponctuel'}
-                      onValueChange={(value) => setFormData({ ...formData, billingFrequency: value as 'annuel' | 'mensuel' | 'ponctuel' })}
-                    >
-                      <SelectTrigger aria-label="Régularité de facturation" className="bg-background">
-                        <SelectValue placeholder="Pour le dashboard" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="ponctuel">Ponctuel</SelectItem>
-                        <SelectItem value="mensuel">Mensuel (x12)</SelectItem>
-                        <SelectItem value="annuel">Annuel</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-              </div>
-            </div>
           </div>
-          
-            <div className="flex justify-end space-x-2 pt-2">
-              <Button variant="outline" type="button" onClick={() => { setIsDialogOpen(false); setSaveError(null) }}>
-                Annuler
-              </Button>
-              <Button type="button" onClick={handleSave}>
-                {editingArticle ? 'Modifier' : 'Créer'}
-              </Button>
-            </div>
-        </DialogContent>
-      </Dialog>
+        </div>
+
+
+        <div className="flex justify-end space-x-2 pt-2">
+          <Button variant="outline" type="button" onClick={() => { setIsDialogOpen(false); setSaveError(null) }}>
+            Annuler
+          </Button>
+          <Button type="button" onClick={handleSave}>
+            {editingArticle ? 'Modifier' : 'Créer'}
+          </Button>
+        </div>
+      </ResponsiveDialog>
 
       {/* Dialog pour gérer les options de services */}
       <Dialog open={isOptionsDialogOpen} onOpenChange={setIsOptionsDialogOpen}>
@@ -551,7 +617,7 @@ export function ArticlesContent() {
                     />
                   </div>
                 </div>
-                
+
                 <div>
                   <Label htmlFor="optionDescription">Description</Label>
                   <Textarea
@@ -562,7 +628,7 @@ export function ArticlesContent() {
                     rows={2}
                   />
                 </div>
-                
+
                 <div className="flex items-center space-x-2">
                   <Checkbox
                     id="isDefault"
@@ -571,7 +637,7 @@ export function ArticlesContent() {
                   />
                   <Label htmlFor="isDefault">Option incluse par défaut</Label>
                 </div>
-                
+
                 <Button onClick={handleAddOption} className="w-full">
                   <Plus className="w-4 h-4 mr-2" />
                   Ajouter l'option

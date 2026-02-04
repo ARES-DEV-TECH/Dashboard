@@ -30,7 +30,7 @@ export function AnalyticsClients({ data }: AnalyticsClientsProps) {
 
   const topClients = clientAnalysis.slice(0, 5)
   const totalRevenue = revenueDistribution.recurring + revenueDistribution.oneTime
-  
+
   const chartData = [
     { name: 'Récurrent', value: revenueDistribution.recurring },
     { name: 'Ponctuel', value: revenueDistribution.oneTime },
@@ -38,9 +38,9 @@ export function AnalyticsClients({ data }: AnalyticsClientsProps) {
 
   return (
     <div className="space-y-6">
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-7">
         {/* Top Clients */}
-        <Card className="col-span-4 relative overflow-hidden transition-all hover:shadow-md border-primary/10 bg-background/60 backdrop-blur-sm">
+        <Card className="col-span-1 md:col-span-2 lg:col-span-4 relative overflow-hidden transition-all hover:shadow-md border-primary/10 bg-background/60 backdrop-blur-sm">
           <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent opacity-50 pointer-events-none" />
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -49,7 +49,7 @@ export function AnalyticsClients({ data }: AnalyticsClientsProps) {
             </CardTitle>
             <CardDescription>Vos meilleurs clients sur la période</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="overflow-auto">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -64,14 +64,14 @@ export function AnalyticsClients({ data }: AnalyticsClientsProps) {
                   const percent = totalRevenue > 0 ? (client.salesTotal / totalRevenue) * 100 : 0
                   return (
                     <TableRow key={index}>
-                      <TableCell className="font-medium">
+                      <TableCell className="font-medium whitespace-nowrap">
                         {client.clientName || 'Inconnu'}
                       </TableCell>
                       <TableCell className="text-right">{client.salesCount}</TableCell>
-                      <TableCell className="text-right font-bold">
+                      <TableCell className="text-right font-bold whitespace-nowrap">
                         {formatCurrency(client.salesTotal)}
                       </TableCell>
-                      <TableCell className="text-right text-muted-foreground">
+                      <TableCell className="text-right text-muted-foreground whitespace-nowrap">
                         {percent.toFixed(1)}%
                       </TableCell>
                     </TableRow>
@@ -90,7 +90,7 @@ export function AnalyticsClients({ data }: AnalyticsClientsProps) {
         </Card>
 
         {/* Répartition Revenus */}
-        <Card className="col-span-3 relative overflow-hidden transition-all hover:shadow-md border-primary/10 bg-background/60 backdrop-blur-sm">
+        <Card className="col-span-1 md:col-span-2 lg:col-span-3 relative overflow-hidden transition-all hover:shadow-md border-primary/10 bg-background/60 backdrop-blur-sm">
           <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent opacity-50 pointer-events-none" />
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -116,7 +116,7 @@ export function AnalyticsClients({ data }: AnalyticsClientsProps) {
                       <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                     ))}
                   </Pie>
-                  <Tooltip 
+                  <Tooltip
                     formatter={(value: number | undefined) => formatCurrency(value ?? 0)}
                     contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
                   />
@@ -124,7 +124,7 @@ export function AnalyticsClients({ data }: AnalyticsClientsProps) {
                 </PieChart>
               </ResponsiveContainer>
             </div>
-            
+
             <div className="mt-4 grid grid-cols-2 gap-4 text-center">
               <div className="p-2 rounded-lg bg-violet-500/10 border border-violet-500/20">
                 <p className="text-xs text-muted-foreground mb-1">Récurrent</p>
