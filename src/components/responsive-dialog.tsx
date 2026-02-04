@@ -2,6 +2,7 @@
 
 import * as React from 'react'
 import { useIsMobile } from '@/hooks/use-mobile'
+import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -45,7 +46,7 @@ export function ResponsiveDialog({
     return (
       <Sheet open={open} onOpenChange={onOpenChange}>
         {trigger && <SheetTrigger asChild>{trigger}</SheetTrigger>}
-        <SheetContent side="bottom" className={className}>
+        <SheetContent side="bottom" className={cn("max-h-[90vh] overflow-y-auto px-6 pb-20 pt-6", className)}>
           <SheetHeader>
             {title && <SheetTitle>{title}</SheetTitle>}
             {description && <SheetDescription>{description}</SheetDescription>}

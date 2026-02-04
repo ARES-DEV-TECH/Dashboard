@@ -14,7 +14,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Textarea } from '@/components/ui/textarea'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { Settings, Plus, Trash2, Columns3, Package, Banknote, Edit, MoreHorizontal } from 'lucide-react'
+import { Settings, Plus, Trash2, Columns3, Package, Banknote, Edit, MoreHorizontal, AlertTriangle } from 'lucide-react'
+import { ConfirmDialog } from '@/components/confirm-dialog'
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@/components/ui/dropdown-menu'
 import { Article } from '@/lib/validations'
 import { generateCSV, downloadCSV } from '@/lib/csv'
@@ -58,6 +59,17 @@ export function ArticlesContent() {
     priceHt: 0,
     isDefault: false
   })
+
+  // States for deletion confirmation
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+  const [articleToDelete, setArticleToDelete] = useState<Article | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
+
+  // State for option deletion confirmation
+  const [isOptionDeleteDialogOpen, setIsOptionDeleteDialogOpen] = useState(false)
+  const [optionToDelete, setOptionToDelete] = useState<string | null>(null)
+  const [isDeletingOption, setIsDeletingOption] = useState(false)
+
   const loading = isLoading
 
   const loadServiceOptions = async (serviceName: string) => {
@@ -95,15 +107,29 @@ export function ArticlesContent() {
     }
   }
 
-  const handleDeleteOption = async (optionId: string) => {
-    if (!confirm('Supprimer cette option ?')) return
+  const handleDeleteOptionClick = (optionId: string) => {
+    setOptionToDelete(optionId)
+    setIsOptionDeleteDialogOpen(true)
+  }
+
+  const handleConfirmDeleteOption = async () => {
+    if (!optionToDelete || !selectedService) return
+    setIsDeletingOption(true)
     try {
-      const res = await electronFetch(`/api/service-options/${optionId}`, { method: 'DELETE' })
-      if (res.ok) await loadServiceOptions(selectedService!.serviceName)
-      else toast.error('Articles', { description: "Erreur lors de la suppression" })
+      const res = await electronFetch(`/api/service-options/${optionToDelete}`, { method: 'DELETE' })
+      if (res.ok) {
+        await loadServiceOptions(selectedService.serviceName)
+        toast.success('Articles', { description: 'Option supprimée.' })
+      } else {
+        const err = await res.json().catch(() => ({}))
+        toast.error('Articles', { description: err?.error || "Erreur lors de la suppression" })
+      }
     } catch (e) {
       console.error('Option:', e)
       toast.error('Articles', { description: "Erreur lors de la suppression" })
+    } finally {
+      setIsDeletingOption(false)
+      setOptionToDelete(null)
     }
   }
 
@@ -183,12 +209,18 @@ export function ArticlesContent() {
     setIsDialogOpen(true)
   }
 
-  const handleDelete = async (article: Article) => {
-    if (!confirm(`Supprimer l'article "${article.serviceName}" ?`)) return
+  const handleDeleteClick = (article: Article) => {
+    setArticleToDelete(article)
+    setIsDeleteDialogOpen(true)
+  }
+
+  const handleConfirmDeleteArticle = async () => {
+    if (!articleToDelete) return
+    setIsDeleting(true)
     const previousArticles = [...articles]
-    mutate(articles.filter(a => a.serviceName !== article.serviceName), { revalidate: false })
+    mutate(articles.filter(a => a.serviceName !== articleToDelete.serviceName), { revalidate: false })
     try {
-      const res = await electronFetch(`/api/articles/${encodeURIComponent(article.serviceName)}`, { method: 'DELETE' })
+      const res = await electronFetch(`/api/articles/${encodeURIComponent(articleToDelete.serviceName)}`, { method: 'DELETE' })
       if (res.ok) {
         await mutate()
         toast.success('Articles', { description: 'Article supprimé.' })
@@ -201,6 +233,9 @@ export function ArticlesContent() {
       console.error('Article:', e)
       mutate(previousArticles, { revalidate: false })
       toast.error('Articles', { description: 'Erreur lors de la suppression' })
+    } finally {
+      setIsDeleting(false)
+      setArticleToDelete(null)
     }
   }
 
@@ -391,7 +426,7 @@ export function ArticlesContent() {
                     <Edit className="mr-2 h-4 w-4" />
                     Modifier
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleDelete(article)} className="text-destructive">
+                  <DropdownMenuItem onClick={() => handleDeleteClick(article)} className="text-destructive">
                     <Trash2 className="mr-2 h-4 w-4" />
                     Supprimer
                   </DropdownMenuItem>
@@ -454,7 +489,7 @@ export function ArticlesContent() {
         toolbarExtra={columnsPopover}
         onAdd={handleAdd}
         onEdit={handleEdit}
-        onDelete={handleDelete}
+        onDelete={handleDeleteClick}
         onExport={handleExport}
         searchPlaceholder="Rechercher un article..."
         emptyMessage="Aucun article. Créez votre premier service."
@@ -676,7 +711,7 @@ export function ArticlesContent() {
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => handleDeleteOption(option.id)}
+                          onClick={() => handleDeleteOptionClick(option.id)}
                           className="text-red-600 hover:text-red-700"
                           aria-label="Supprimer l'option"
                         >
@@ -697,6 +732,24 @@ export function ArticlesContent() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        isOpen={isDeleteDialogOpen}
+        onOpenChange={setIsDeleteDialogOpen}
+        title="Supprimer l'article"
+        description={`Êtes-vous sûr de vouloir supprimer l'article "${articleToDelete?.serviceName}" ? Cette action est irréversible.`}
+        onConfirm={handleConfirmDeleteArticle}
+        isLoading={isDeleting}
+      />
+
+      <ConfirmDialog
+        isOpen={isOptionDeleteDialogOpen}
+        onOpenChange={setIsOptionDeleteDialogOpen}
+        title="Supprimer l'option"
+        description="Êtes-vous sûr de vouloir supprimer cette option ? Cette action est irréversible."
+        onConfirm={handleConfirmDeleteOption}
+        isLoading={isDeletingOption}
+      />
     </div>
   )
 }

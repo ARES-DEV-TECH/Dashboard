@@ -127,6 +127,7 @@ export default function DashboardPage() {
           status: s.status || 'paid',
           recurring: (s as { recurring?: boolean }).recurring,
           recurringType: (s as { recurringType?: string | null }).recurringType,
+          items: (s as any).items,
         })),
     [sales]
   )

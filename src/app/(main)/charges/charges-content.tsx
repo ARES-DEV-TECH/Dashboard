@@ -16,7 +16,8 @@ import { safeErrorMessage, formatTableDate, cn } from '@/lib/utils'
 import { Skeleton } from '@/components/ui/skeleton'
 import { ChargeFormModal } from './components/ChargeFormModal'
 import { Card, CardContent } from '@/components/ui/card'
-import { Edit, Trash2, MoreHorizontal } from 'lucide-react'
+import { Edit, Trash2, MoreHorizontal, AlertTriangle } from 'lucide-react'
+import { ConfirmDialog } from '@/components/confirm-dialog'
 import { SWR_KEYS, fetchCharges, fetchArticles, fetchClients } from '@/lib/swr-fetchers'
 import { SWR_LIST_OPTIONS } from '@/lib/swr-config'
 
@@ -56,6 +57,11 @@ export function ChargesContent() {
     linkedClient: '',
     year: new Date().getFullYear(),
   })
+
+  // States for deletion confirmation
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+  const [chargeToDelete, setChargeToDelete] = useState<Charge | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -167,12 +173,18 @@ export function ChargesContent() {
     setIsDialogOpen(true)
   }
 
-  const handleDelete = async (charge: Charge) => {
-    if (!confirm(`Supprimer la charge ${charge.id} ?`)) return
+  const handleDeleteClick = (charge: Charge) => {
+    setChargeToDelete(charge)
+    setIsDeleteDialogOpen(true)
+  }
+
+  const handleConfirmDeleteCharge = async () => {
+    if (!chargeToDelete) return
+    setIsDeleting(true)
     const previousCharges = [...charges]
-    mutateCharges({ charges: charges.filter(c => c.id !== charge.id), pagination: chargesData?.pagination }, { revalidate: false })
+    mutateCharges({ charges: charges.filter(c => c.id !== chargeToDelete.id), pagination: chargesData?.pagination }, { revalidate: false })
     try {
-      const response = await electronFetch(`/api/charges/${charge.id}`, {
+      const response = await electronFetch(`/api/charges/${chargeToDelete.id}`, {
         method: 'DELETE',
       })
       if (response.ok) {
@@ -187,6 +199,9 @@ export function ChargesContent() {
       console.error('Error deleting charge:', error)
       mutateCharges({ charges: previousCharges, pagination: chargesData?.pagination }, { revalidate: false })
       toast.error('Charges', { description: safeErrorMessage(error, 'Erreur lors de la suppression') })
+    } finally {
+      setIsDeleting(false)
+      setChargeToDelete(null)
     }
   }
 
@@ -412,7 +427,7 @@ export function ChargesContent() {
               <Button size="icon" variant="ghost" className="h-8 w-8 rounded-lg hover:bg-primary/10 hover:text-primary" onClick={() => handleEdit(charge)}>
                 <Edit className="h-4 w-4" />
               </Button>
-              <Button size="icon" variant="ghost" className="h-8 w-8 rounded-lg text-destructive hover:bg-destructive/10" onClick={() => handleDelete(charge)}>
+              <Button size="icon" variant="ghost" className="h-8 w-8 rounded-lg text-destructive hover:bg-destructive/10" onClick={() => handleDeleteClick(charge)}>
                 <Trash2 className="h-4 w-4" />
               </Button>
             </div>
@@ -456,7 +471,7 @@ export function ChargesContent() {
         toolbarExtra={columnsPopover}
         onAdd={handleAdd}
         onEdit={handleEdit}
-        onDelete={handleDelete}
+        onDelete={handleDeleteClick}
         onExport={handleExport}
         virtualized
         renderMobileItem={renderMobileItem}
@@ -473,6 +488,15 @@ export function ChargesContent() {
         clients={clients}
         dataLoaded={!loading}
         onReset={resetForm}
+      />
+
+      <ConfirmDialog
+        isOpen={isDeleteDialogOpen}
+        onOpenChange={setIsDeleteDialogOpen}
+        title="Supprimer la charge"
+        description={`Êtes-vous sûr de vouloir supprimer la charge "${chargeToDelete?.description || chargeToDelete?.id}" ? Cette action est irréversible.`}
+        onConfirm={handleConfirmDeleteCharge}
+        isLoading={isDeleting}
       />
     </div>
   )

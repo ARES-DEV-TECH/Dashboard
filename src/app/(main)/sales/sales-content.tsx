@@ -17,7 +17,8 @@ import { toast } from 'sonner'
 import { safeErrorMessage, formatTableDate, cn } from '@/lib/utils'
 import { SWR_KEYS, fetchClients, fetchArticles, fetchSalesList, fetchCharges } from '@/lib/swr-fetchers'
 import { SWR_LIST_OPTIONS } from '@/lib/swr-config'
-import { Plus, Columns3, FileText, User, Package, Settings, Receipt, MoreHorizontal, Trash2, Edit } from 'lucide-react'
+import { Plus, Columns3, FileText, User, Package, Settings, Receipt, MoreHorizontal, Trash2, Edit, AlertTriangle } from 'lucide-react'
+import { ConfirmDialog } from '@/components/confirm-dialog'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
@@ -126,6 +127,11 @@ export function SalesContent() {
     endDate: '', status: 'paid'
   })
   const [hoursInput, setHoursInput] = useState<string[]>([''])
+
+  // States for deletion confirmation
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+  const [saleToDelete, setSaleToDelete] = useState<{ invoiceNo?: string } | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
 
   const handleChargeToggle = (chargeId: string) => {
     const id = String(chargeId)
@@ -297,7 +303,7 @@ export function SalesContent() {
     }
 
     // Load options for each item
-    const itemsWithOpts = await Promise.all(items.map(async (item) => {
+    const itemsWithOpts = await Promise.all(items.map(async (item: any) => {
       try {
         const res = await electronFetch(`/api/service-options?serviceName=${encodeURIComponent(item.serviceName)}`)
         const options = res.ok ? (await res.json()).options || [] : []
@@ -481,14 +487,15 @@ export function SalesContent() {
     }
   }
 
-  const handleDelete = async (sale: { invoiceNo?: string }) => {
-    const invoiceNo = sale?.invoiceNo
-    if (!invoiceNo) {
-      console.error('handleDelete: invoiceNo manquant', sale)
-      toast.error('Ventes', { description: 'Impossible de supprimer : numéro de facture manquant.' })
-      return
-    }
-    if (!confirm('Êtes-vous sûr de vouloir supprimer cette vente ?')) return
+  const handleDeleteClick = (sale: { invoiceNo?: string }) => {
+    setSaleToDelete(sale)
+    setIsDeleteDialogOpen(true)
+  }
+
+  const handleConfirmDeleteSale = async () => {
+    if (!saleToDelete?.invoiceNo) return
+    setIsDeleting(true)
+    const invoiceNo = saleToDelete.invoiceNo
     const previousSales = [...sales]
     mutateSalesList({ sales: sales.filter(s => s.invoiceNo !== invoiceNo), pagination: salesListData?.pagination }, { revalidate: false })
     try {
@@ -510,6 +517,9 @@ export function SalesContent() {
       console.error('Erreur lors de la suppression:', error)
       mutateSalesList({ sales: previousSales, pagination: salesListData?.pagination }, { revalidate: false })
       toast.error('Ventes', { description: 'Erreur lors de la suppression' })
+    } finally {
+      setIsDeleting(false)
+      setSaleToDelete(null)
     }
   }
 
@@ -712,7 +722,7 @@ export function SalesContent() {
                   <Edit className="mr-2 h-4 w-4" />
                   Modifier
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleDelete(sale)} className="text-destructive font-semibold">
+                <DropdownMenuItem onClick={() => handleDeleteClick(sale)} className="text-destructive font-semibold">
                   <Trash2 className="mr-2 h-4 w-4" />
                   Supprimer
                 </DropdownMenuItem>
@@ -766,7 +776,7 @@ export function SalesContent() {
         onExport={handleExportCSV}
         onAdd={handleAdd}
         onEdit={handleEdit}
-        onDelete={handleDelete}
+        onDelete={handleDeleteClick}
         onGenerateQuote={handleGenerateQuote}
         onGenerateInvoice={handleGenerateInvoice}
         emptyMessage="Aucune vente. Cliquez sur Nouveau pour en créer une."
@@ -1101,6 +1111,15 @@ export function SalesContent() {
           </div>
         </form>
       </ResponsiveDialog>
+
+      <ConfirmDialog
+        isOpen={isDeleteDialogOpen}
+        onOpenChange={setIsDeleteDialogOpen}
+        title="Supprimer la vente"
+        description={`Êtes-vous sûr de vouloir supprimer la vente #${saleToDelete?.invoiceNo} ? Cette action est irréversible.`}
+        onConfirm={handleConfirmDeleteSale}
+        isLoading={isDeleting}
+      />
     </div>
   )
 }

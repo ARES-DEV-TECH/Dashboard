@@ -11,6 +11,7 @@ import { Label } from '@/components/ui/label'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Columns3, User, Building2, Edit, Trash2 } from 'lucide-react'
+import { ConfirmDialog } from '@/components/confirm-dialog'
 import { electronFetch } from '@/lib/electron-api'
 import { toast } from 'sonner'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -38,6 +39,12 @@ export function ClientsContent() {
   const [editingClient, setEditingClient] = useState<Client | null>(null)
   const [formData, setFormData] = useState<Partial<Client>>({})
   const [saveError, setSaveError] = useState<string | null>(null)
+
+  // States for deletion confirmation
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+  const [clientToDelete, setClientToDelete] = useState<Client | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
+
   const loading = isLoading
 
   const handleSave = async () => {
@@ -120,29 +127,40 @@ export function ClientsContent() {
     setIsDialogOpen(true)
   }
 
-  const handleDelete = async (client: Client) => {
-    const displayName = [client.firstName, client.lastName].filter(Boolean).join(' ') || client.clientName || 'Ce client'
-    if (confirm(`Êtes-vous sûr de vouloir supprimer le client "${displayName}" ?`)) {
-      const clientId = client.clientName ?? [client.firstName, client.lastName].filter(Boolean).join(' ') ?? ''
-      const previousClients = [...clients]
-      mutate(clients.filter(c => c.clientName !== client.clientName), { revalidate: false })
-      try {
-        const response = await electronFetch(`/api/clients/${encodeURIComponent(clientId)}`, {
-          method: 'DELETE',
-        })
-        if (response.ok) {
-          await mutate()
-          toast.success('Clients', { description: 'Client supprimé.' })
-        } else {
-          const data = await response.json().catch(() => ({}))
-          mutate(previousClients, { revalidate: false })
-          toast.error('Clients', { description: data?.error || 'Erreur lors de la suppression' })
-        }
-      } catch (error) {
-        console.error('Error deleting client:', error)
+  const handleDeleteClick = (client: Client) => {
+    setClientToDelete(client)
+    setIsDeleteDialogOpen(true)
+  }
+
+  const handleConfirmDelete = async () => {
+    if (!clientToDelete) return
+    setIsDeleting(true)
+
+    const clientId = clientToDelete.clientName ?? [clientToDelete.firstName, clientToDelete.lastName].filter(Boolean).join(' ') ?? ''
+    const previousClients = [...clients]
+
+    // Optimistic UI update
+    mutate(clients.filter(c => c.clientName !== clientToDelete.clientName), { revalidate: false })
+
+    try {
+      const response = await electronFetch(`/api/clients/${encodeURIComponent(clientId)}`, {
+        method: 'DELETE',
+      })
+      if (response.ok) {
+        await mutate()
+        toast.success('Clients', { description: 'Client supprimé.' })
+      } else {
+        const data = await response.json().catch(() => ({}))
         mutate(previousClients, { revalidate: false })
-        toast.error('Clients', { description: 'Erreur lors de la suppression' })
+        toast.error('Clients', { description: data?.error || 'Erreur lors de la suppression' })
       }
+    } catch (error) {
+      console.error('Error deleting client:', error)
+      mutate(previousClients, { revalidate: false })
+      toast.error('Clients', { description: 'Erreur lors de la suppression' })
+    } finally {
+      setIsDeleting(false)
+      setClientToDelete(null)
     }
   }
 
@@ -325,7 +343,7 @@ export function ClientsContent() {
               <Button size="icon" variant="ghost" className="h-8 w-8 rounded-lg hover:bg-primary/10 hover:text-primary" onClick={() => handleEdit(client)}>
                 <Edit className="h-4 w-4" />
               </Button>
-              <Button size="icon" variant="ghost" className="h-8 w-8 rounded-lg text-destructive hover:bg-destructive/10" onClick={() => handleDelete(client)}>
+              <Button size="icon" variant="ghost" className="h-8 w-8 rounded-lg text-destructive hover:bg-destructive/10" onClick={() => handleDeleteClick(client)}>
                 <Trash2 className="h-4 w-4" />
               </Button>
             </div>
@@ -404,7 +422,7 @@ export function ClientsContent() {
         toolbarExtra={columnsPopover}
         onAdd={handleAdd}
         onEdit={handleEdit}
-        onDelete={handleDelete}
+        onDelete={handleDeleteClick}
         onExport={handleExport}
         searchPlaceholder="Rechercher un client..."
         emptyMessage="Aucun client. Créez votre premier client."
@@ -525,6 +543,15 @@ export function ClientsContent() {
           </div>
         </form>
       </ResponsiveDialog>
+
+      <ConfirmDialog
+        isOpen={isDeleteDialogOpen}
+        onOpenChange={setIsDeleteDialogOpen}
+        title="Supprimer le client"
+        description={`Êtes-vous sûr de vouloir supprimer le client "${[clientToDelete?.firstName, clientToDelete?.lastName].filter(Boolean).join(' ') || clientToDelete?.clientName || ''}" ? Cette action est irréversible.`}
+        onConfirm={handleConfirmDelete}
+        isLoading={isDeleting}
+      />
     </div>
   )
 }

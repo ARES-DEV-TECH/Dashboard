@@ -351,7 +351,42 @@ export function DashboardRecentSalesTable({ data }: { data: RecentSale[] }) {
                     <div className="flex items-center justify-between gap-2 p-2.5 rounded-lg bg-background/40 border border-primary/5">
                       <div className="min-w-0">
                         <div className="text-xs text-muted-foreground uppercase tracking-wider font-semibold mb-0.5">Service</div>
-                        <div className="text-sm font-medium truncate">{sale.service || '—'}</div>
+                        {sale.items && sale.items.length > 0 ? (
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <Button variant="link" className="h-auto p-0 text-left font-medium text-foreground hover:text-primary transition-colors max-w-[150px] truncate block text-sm">
+                                {sale.service}
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-[calc(100vw-3rem)] max-w-sm p-0 overflow-hidden shadow-2xl border-primary/20" align="start">
+                              <div className="bg-primary/5 px-3 py-2 border-b border-primary/10 flex items-center justify-between">
+                                <div className="text-[10px] font-bold uppercase tracking-wider text-primary/70 italic flex items-center gap-2">
+                                  <Inbox className="size-3" /> Détails prestations
+                                </div>
+                                <span className="text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded-full font-bold">
+                                  {sale.items.length} {sale.items.length > 1 ? 'articles' : 'article'}
+                                </span>
+                              </div>
+                              <div className="max-h-[250px] overflow-y-auto p-2 space-y-1">
+                                {sale.items.map((item: any, i: number) => (
+                                  <div key={i} className="flex justify-between items-start gap-3 p-2 rounded-md bg-muted/30 border border-transparent">
+                                    <div className="min-w-0">
+                                      <div className="text-xs font-bold leading-tight">{item.serviceName}</div>
+                                      <div className="text-[10px] text-muted-foreground mt-0.5">
+                                        {item.unitLabel === 'heure' ? `${item.quantity}h × ${item.unitPriceHt}€` : `${item.quantity} × ${item.unitPriceHt}€`}
+                                      </div>
+                                    </div>
+                                    <div className="text-xs font-bold text-primary whitespace-nowrap">
+                                      {(item.quantity * (item.unitPriceHt + (item.optionsTotalHt || 0))).toFixed(2)}€
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </PopoverContent>
+                          </Popover>
+                        ) : (
+                          <div className="text-sm font-medium truncate">{sale.service || '—'}</div>
+                        )}
                       </div>
                       <div className="text-right">
                         <div className="text-xs text-muted-foreground uppercase tracking-wider font-semibold mb-0.5 text-right">Montant</div>

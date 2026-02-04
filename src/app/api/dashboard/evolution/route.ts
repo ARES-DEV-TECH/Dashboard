@@ -62,8 +62,8 @@ export async function GET(request: NextRequest) {
     }
 
     // Filtre statut
-    const statusFilter = statusParam === 'all' 
-      ? {} 
+    const statusFilter = statusParam === 'all'
+      ? {}
       : { status: statusParam || 'paid' }
 
     // Récupérer ventes (y compris récurrentes passées), charges, services et clients
@@ -72,11 +72,11 @@ export async function GET(request: NextRequest) {
         where: {
           userId: user.id,
           OR: [
-            { 
+            {
               saleDate: { gte: startDate, lte: endDate },
               ...statusFilter
             }, // Ventes de la période
-            { 
+            {
               recurring: true,
               ...statusFilter
             } // Toutes les ventes récurrentes
@@ -92,7 +92,8 @@ export async function GET(request: NextRequest) {
           recurring: true,
           recurringType: true,
           endDate: true,
-          status: true
+          status: true,
+          items: true
         }
       }),
       prisma.charge.findMany({
@@ -125,9 +126,11 @@ export async function GET(request: NextRequest) {
       })
     ])
 
+    const typedSales = sales as any[]
+
     // Créer les données d'évolution
     const evolutionData = []
-    
+
     for (let step = 1; step <= steps; step++) {
       let stepStart: Date
       let stepEnd: Date
@@ -176,7 +179,7 @@ export async function GET(request: NextRequest) {
 
       sales.forEach(sale => {
         const saleDate = new Date(sale.saleDate)
-        
+
         let includeSale = false
 
         if (sale.recurring) {
@@ -185,18 +188,18 @@ export async function GET(request: NextRequest) {
           // NON, une vente récurrente mensuelle est facturée UNE fois par mois.
           // À quelle date ? Généralement à la date anniversaire (jour du mois).
           // Si la vente initiale est le 15/01, elle se répète le 15/02, 15/03...
-          
+
           const initialDay = saleDate.getDate()
           const initialMonth = saleDate.getMonth()
           const saleEndDate = sale.endDate ? new Date(sale.endDate) : null
-          
+
           // Helper to check if a date is within sale validity
           const isDateValid = (d: Date) => {
-             if (!saleEndDate) return true
-             // Compare dates only (ignore time for end date check to be inclusive)
-             const dTime = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
-             const eTime = new Date(saleEndDate.getFullYear(), saleEndDate.getMonth(), saleEndDate.getDate()).getTime()
-             return dTime <= eTime
+            if (!saleEndDate) return true
+            // Compare dates only (ignore time for end date check to be inclusive)
+            const dTime = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
+            const eTime = new Date(saleEndDate.getFullYear(), saleEndDate.getMonth(), saleEndDate.getDate()).getTime()
+            return dTime <= eTime
           }
 
           if (granularity === 'day') {
@@ -267,22 +270,22 @@ export async function GET(request: NextRequest) {
       // Charges de l'étape
       let totalChargesAmount = 0
       let stepChargesCount = 0
-      
+
       charges.forEach(charge => {
         const chargeDate = new Date(charge.expenseDate)
-        
+
         let includeCharge = false
-        
+
         if (charge.recurring) {
           const initialDay = chargeDate.getDate()
           const initialMonth = chargeDate.getMonth()
           const chargeEndDate = charge.endDate ? new Date(charge.endDate) : null
 
           const isDateValid = (d: Date) => {
-             if (!chargeEndDate) return true
-             const dTime = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
-             const eTime = new Date(chargeEndDate.getFullYear(), chargeEndDate.getMonth(), chargeEndDate.getDate()).getTime()
-             return dTime <= eTime
+            if (!chargeEndDate) return true
+            const dTime = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
+            const eTime = new Date(chargeEndDate.getFullYear(), chargeEndDate.getMonth(), chargeEndDate.getDate()).getTime()
+            return dTime <= eTime
           }
 
           if (granularity === 'day') {
@@ -324,7 +327,7 @@ export async function GET(request: NextRequest) {
             includeCharge = true
           }
         }
-        
+
         if (includeCharge) {
           totalChargesAmount += charge.amount || 0
           stepChargesCount++
@@ -333,13 +336,13 @@ export async function GET(request: NextRequest) {
 
       // Analyser les liaisons
       const linkedSales = stepSalesItems.filter(sale => sale.serviceName || sale.clientName).length
-      
+
       evolutionData.push({
         // Pour Recharts, on garde une clé générique "label" ou "monthName"
         // Le front attend "month" (numéro) ou "monthName"
         step: step,
         month: step, // Pour compatibilité legacy type
-        monthName: label, 
+        monthName: label,
         sales: {
           count: stepSalesCount,
           totalHt: totalSalesHt,
@@ -367,79 +370,80 @@ export async function GET(request: NextRequest) {
     // Analyse services/clients (sur les données brutes filtrées par la période globale)
     // On filtre les ventes/charges qui tombent dans la période [startDate, endDate]
     // incluant les récurrences projetées
-    
+
     // Note: Pour faire simple et performant, on réutilise les totaux calculés par étape
     // Mais serviceAnalysis a besoin du détail par service.
-    
+
     // On recalcule un set "activeSalesInPeriod"
     const activeSalesInPeriod: typeof sales = []
     // ... Logique similaire à la boucle steps mais sur toute la période ...
     // Pour simplifier, on prend toutes les ventes qui ont matché au moins une fois dans la boucle
     // Mais c'est complexe à extraire de la boucle.
-    
+
     // On va faire une approximation acceptable : 
     // Analyse des services basée sur les ventes "réelles" dans la période + récurrentes actives
-    
+
     const serviceAnalysis = services.map(service => {
       // Calculer le total projeté pour ce service sur la période
       let projectedTotal = 0
       let count = 0
-      
-      sales.filter(s => s.serviceName === service.serviceName).forEach(sale => {
-         // Appliquer la même logique de filtrage temporel que ci-dessus
-         // C'est un peu lourd de dupliquer la logique.
-         // On va simplifier : si vente ponctuelle dans la période -> OK
-         // Si vente récurrente active -> compter X occurrences selon la période
-         
-         const sDate = new Date(sale.saleDate)
-         if (!sale.recurring) {
+
+      sales.forEach(sale => {
+        const sDate = new Date(sale.saleDate)
+        const items = typeof sale.items === 'string' ? JSON.parse(sale.items) : (sale.items || [])
+
+        // Helper function to process individual item/sale
+        const processItem = (itemName: string, itemHt: number) => {
+          if (itemName !== service.serviceName) return
+
+          if (!sale.recurring) {
             if (sDate >= startDate && sDate <= endDate) {
-               projectedTotal += sale.caHt
-               count++
+              projectedTotal += itemHt
+              count++
             }
-         } else {
-            // Récurrent
-            // Combien d'occurrences dans [startDate, endDate] ?
-            // Mensuel : chaque mois où jour >= sDate.day
+          } else {
             let occurrences = 0
             const saleEndDate = sale.endDate ? new Date(sale.endDate) : null
-            
-            if (sale.recurringType === 'mensuel') {
-               // Pour chaque mois de la période
-               let current = new Date(startDate)
-               while (current <= endDate) {
-                  // Date d'occurrence théorique ce mois-ci
-                  const occurrenceDate = new Date(current.getFullYear(), current.getMonth(), sDate.getDate())
-                  
-                  let isValid = true
-                  if (saleEndDate && occurrenceDate > saleEndDate) isValid = false
-                  
-                  if (isValid && occurrenceDate >= sDate && occurrenceDate >= startDate && occurrenceDate <= endDate) {
-                     occurrences++
-                  }
-                  current.setMonth(current.getMonth() + 1)
-               }
-            } else if (sale.recurringType === 'annuel') {
-               // Chaque année
-               const occurrenceDate = new Date(year, sDate.getMonth(), sDate.getDate())
-               
-               let isValid = true
-               if (saleEndDate && occurrenceDate > saleEndDate) isValid = false
 
-               if (isValid && occurrenceDate >= sDate && occurrenceDate >= startDate && occurrenceDate <= endDate) {
+            if (sale.recurringType === 'mensuel') {
+              let current = new Date(startDate)
+              while (current <= endDate) {
+                const occurrenceDate = new Date(current.getFullYear(), current.getMonth(), sDate.getDate())
+                let isValid = true
+                if (saleEndDate && occurrenceDate > saleEndDate) isValid = false
+                if (isValid && occurrenceDate >= sDate && occurrenceDate >= startDate && occurrenceDate <= endDate) {
                   occurrences++
-               }
+                }
+                current.setMonth(current.getMonth() + 1)
+              }
+            } else if (sale.recurringType === 'annuel') {
+              const occurrenceDate = new Date(year, sDate.getMonth(), sDate.getDate())
+              let isValid = true
+              if (saleEndDate && occurrenceDate > saleEndDate) isValid = false
+              if (isValid && occurrenceDate >= sDate && occurrenceDate >= startDate && occurrenceDate <= endDate) {
+                occurrences++
+              }
             }
-            projectedTotal += (sale.caHt * occurrences)
+            projectedTotal += (itemHt * occurrences)
             count += occurrences
-         }
+          }
+        }
+
+        if (Array.isArray(items) && items.length > 0) {
+          items.forEach((item: any) => {
+            const itemTotalHt = (item.quantity || 1) * ((item.unitPriceHt || 0) + (item.optionsTotalHt || 0))
+            processItem(item.serviceName, itemTotalHt)
+          })
+        } else {
+          processItem(sale.serviceName, sale.caHt)
+        }
       })
-      
+
       // On récupère aussi les charges liées
       const serviceCharges = charges.filter(c => c.linkedService === service.serviceName)
       // TODO: project charges too... Pour l'instant on garde le total brut des charges ponctuelles + récurrentes (x1 ?)
       // L'analyse service est indicative.
-      
+
       return {
         serviceName: service.serviceName,
         unitPrice: service.priceHt,
@@ -455,42 +459,42 @@ export async function GET(request: NextRequest) {
     const clientAnalysis = clients.map(client => {
       let projectedTotal = 0
       let count = 0
-      
-      sales.filter(s => s.clientName === client.clientName).forEach(sale => {
-         const sDate = new Date(sale.saleDate)
-         if (!sale.recurring) {
-            if (sDate >= startDate && sDate <= endDate) {
-               projectedTotal += sale.caHt
-               count++
-            }
-         } else {
-            let occurrences = 0
-            const saleEndDate = sale.endDate ? new Date(sale.endDate) : null
-            
-            if (sale.recurringType === 'mensuel') {
-               let current = new Date(startDate)
-               while (current <= endDate) {
-                  const occurrenceDate = new Date(current.getFullYear(), current.getMonth(), sDate.getDate())
-                  let isValid = true
-                  if (saleEndDate && occurrenceDate > saleEndDate) isValid = false
-                  
-                  if (isValid && occurrenceDate >= sDate && occurrenceDate >= startDate && occurrenceDate <= endDate) {
-                     occurrences++
-                  }
-                  current.setMonth(current.getMonth() + 1)
-               }
-            } else if (sale.recurringType === 'annuel') {
-               const occurrenceDate = new Date(year, sDate.getMonth(), sDate.getDate())
-               let isValid = true
-               if (saleEndDate && occurrenceDate > saleEndDate) isValid = false
 
-               if (isValid && occurrenceDate >= sDate && occurrenceDate >= startDate && occurrenceDate <= endDate) {
-                  occurrences++
-               }
+      sales.filter(s => s.clientName === client.clientName).forEach(sale => {
+        const sDate = new Date(sale.saleDate)
+        if (!sale.recurring) {
+          if (sDate >= startDate && sDate <= endDate) {
+            projectedTotal += sale.caHt
+            count++
+          }
+        } else {
+          let occurrences = 0
+          const saleEndDate = sale.endDate ? new Date(sale.endDate) : null
+
+          if (sale.recurringType === 'mensuel') {
+            let current = new Date(startDate)
+            while (current <= endDate) {
+              const occurrenceDate = new Date(current.getFullYear(), current.getMonth(), sDate.getDate())
+              let isValid = true
+              if (saleEndDate && occurrenceDate > saleEndDate) isValid = false
+
+              if (isValid && occurrenceDate >= sDate && occurrenceDate >= startDate && occurrenceDate <= endDate) {
+                occurrences++
+              }
+              current.setMonth(current.getMonth() + 1)
             }
-            projectedTotal += (sale.caHt * occurrences)
-            count += occurrences
-         }
+          } else if (sale.recurringType === 'annuel') {
+            const occurrenceDate = new Date(year, sDate.getMonth(), sDate.getDate())
+            let isValid = true
+            if (saleEndDate && occurrenceDate > saleEndDate) isValid = false
+
+            if (isValid && occurrenceDate >= sDate && occurrenceDate >= startDate && occurrenceDate <= endDate) {
+              occurrences++
+            }
+          }
+          projectedTotal += (sale.caHt * occurrences)
+          count += occurrences
+        }
       })
 
       return {
@@ -498,7 +502,7 @@ export async function GET(request: NextRequest) {
         contactPerson: client.email,
         salesCount: count,
         salesTotal: projectedTotal,
-        chargesCount: 0, 
+        chargesCount: 0,
         chargesTotal: 0,
         linkedServices: 0
       }
@@ -507,43 +511,47 @@ export async function GET(request: NextRequest) {
     // Analyse Répartition Revenus (Récurrent vs Ponctuel)
     let totalRecurring = 0
     let totalOneTime = 0
-    
+
     // On réutilise serviceAnalysis ou on refait une passe rapide ?
     // Refaisons une passe rapide sur sales agrégées
     // Ou mieux, on utilise clientAnalysis pour le total global et on sait déjà ce qui est récurrent dans sales...
     // Non, clientAnalysis mélange tout.
-    
+
     sales.forEach(sale => {
-         const sDate = new Date(sale.saleDate)
-         let amount = 0
-         
-         if (!sale.recurring) {
-            if (sDate >= startDate && sDate <= endDate) {
-               amount = sale.caHt
-               totalOneTime += amount
-            }
-         } else {
-            let occurrences = 0
-            const saleEndDate = sale.endDate ? new Date(sale.endDate) : null
-            
-            if (sale.recurringType === 'mensuel') {
-               let current = new Date(startDate)
-               while (current <= endDate) {
-                  const occurrenceDate = new Date(current.getFullYear(), current.getMonth(), sDate.getDate())
-                  let isValid = true
-                  if (saleEndDate && occurrenceDate > saleEndDate) isValid = false
-                  if (isValid && occurrenceDate >= sDate && occurrenceDate >= startDate && occurrenceDate <= endDate) occurrences++
-                  current.setMonth(current.getMonth() + 1)
-               }
-            } else if (sale.recurringType === 'annuel') {
-               const occurrenceDate = new Date(year, sDate.getMonth(), sDate.getDate())
-               let isValid = true
-               if (saleEndDate && occurrenceDate > saleEndDate) isValid = false
-               if (isValid && occurrenceDate >= sDate && occurrenceDate >= startDate && occurrenceDate <= endDate) occurrences++
-            }
-            amount = sale.caHt * occurrences
-            totalRecurring += amount
-         }
+      const sDate = new Date(sale.saleDate)
+      let amount = 0
+
+      // No need to parse items here if we just want the total caHt of the sale
+      // because caHt column is already the sum of items.
+      // But we must distinguish recurring vs one-time.
+
+      if (!sale.recurring) {
+        if (sDate >= startDate && sDate <= endDate) {
+          amount = sale.caHt
+          totalOneTime += amount
+        }
+      } else {
+        let occurrences = 0
+        const saleEndDate = sale.endDate ? new Date(sale.endDate) : null
+
+        if (sale.recurringType === 'mensuel') {
+          let current = new Date(startDate)
+          while (current <= endDate) {
+            const occurrenceDate = new Date(current.getFullYear(), current.getMonth(), sDate.getDate())
+            let isValid = true
+            if (saleEndDate && occurrenceDate > saleEndDate) isValid = false
+            if (isValid && occurrenceDate >= sDate && occurrenceDate >= startDate && occurrenceDate <= endDate) occurrences++
+            current.setMonth(current.getMonth() + 1)
+          }
+        } else if (sale.recurringType === 'annuel') {
+          const occurrenceDate = new Date(year, sDate.getMonth(), sDate.getDate())
+          let isValid = true
+          if (saleEndDate && occurrenceDate > saleEndDate) isValid = false
+          if (isValid && occurrenceDate >= sDate && occurrenceDate >= startDate && occurrenceDate <= endDate) occurrences++
+        }
+        amount = sale.caHt * occurrences
+        totalRecurring += amount
+      }
     })
 
     // Données mensuelles par service (ou journalières si range=month)
@@ -551,12 +559,12 @@ export async function GET(request: NextRequest) {
     // On réutilise la boucle 'evolutionData' pour construire ça ?
     // C'est plus simple de le faire en post-traitement de evolutionData si on avait le détail.
     // Pour l'instant, on renvoie un tableau compatible mais vide ou simplifié pour la vue jour.
-    
+
     // Si vue jour, on n'a pas besoin de "monthlyServiceData" pour le graph principal (AreaChart).
     // Mais DashboardServices l'utilise.
-    
+
     // On va retourner monthlyEvolution qui est le principal.
-    
+
     return NextResponse.json(
       {
         year,

@@ -12,7 +12,8 @@ import { electronFetch } from '@/lib/electron-api'
 import { toast } from 'sonner'
 import { safeErrorMessage } from '@/lib/utils'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Building2, Euro, FileText, Download, Trash2, Upload, Image } from 'lucide-react'
+import { Building2, Euro, FileText, Download, Trash2, Upload, Image, AlertTriangle } from 'lucide-react'
+import { ConfirmDialog } from '@/components/confirm-dialog'
 import { SWR_KEYS, fetchSettings } from '@/lib/swr-fetchers'
 import { SWR_CACHE_LONG_OPTIONS } from '@/lib/swr-config'
 
@@ -26,6 +27,12 @@ export function SettingsContent() {
   const [editingParam, setEditingParam] = useState<string | null>(null)
   const [newValue, setNewValue] = useState('')
   const [uploading, setUploading] = useState(false)
+
+  // States for confirmations
+  const [isLogoDeleteDialogOpen, setIsLogoDeleteDialogOpen] = useState(false)
+  const [isResetDialogOpen, setIsResetDialogOpen] = useState(false)
+  const [isReseting, setIsReseting] = useState(false)
+  const [isDeletingLogo, setIsDeletingLogo] = useState(false)
 
   const parameters: ParametresEntreprise[] = data?.parameters ?? []
   const logoPath = parameters.find(p => p.key === 'logoPath')?.value ?? ''
@@ -93,7 +100,11 @@ export function SettingsContent() {
   }
 
   const handleLogoDelete = async () => {
-    if (!confirm('Supprimer le logo ?')) return
+    setIsLogoDeleteDialogOpen(true)
+  }
+
+  const handleConfirmLogoDelete = async () => {
+    setIsDeletingLogo(true)
     try {
       const res = await electronFetch('/api/upload-logo', { method: 'DELETE' })
       if (res.ok) {
@@ -103,6 +114,9 @@ export function SettingsContent() {
     } catch (e) {
       console.error('Logo:', e)
       toast.error('Paramètres', { description: 'Erreur suppression logo' })
+    } finally {
+      setIsDeletingLogo(false)
+      setIsLogoDeleteDialogOpen(false)
     }
   }
 
@@ -132,7 +146,11 @@ export function SettingsContent() {
   }
 
   const handleResetDatabase = async () => {
-    if (!confirm('Réinitialiser la base de données ? Action irréversible.')) return
+    setIsResetDialogOpen(true)
+  }
+
+  const handleConfirmResetDatabase = async () => {
+    setIsReseting(true)
     try {
       const res = await electronFetch('/api/reset', { method: 'POST' })
       if (res.ok) {
@@ -142,6 +160,9 @@ export function SettingsContent() {
     } catch (e) {
       console.error('Reset:', e)
       toast.error('Paramètres', { description: 'Erreur réinitialisation' })
+    } finally {
+      setIsReseting(false)
+      setIsResetDialogOpen(false)
     }
   }
 
@@ -329,9 +350,9 @@ export function SettingsContent() {
             {logoPath ? (
               <div className="space-y-4">
                 <div className="flex items-center gap-4">
-                  <img 
-                    src={logoPath} 
-                    alt="Logo entreprise" 
+                  <img
+                    src={logoPath}
+                    alt="Logo entreprise"
                     className="h-16 w-16 object-contain border rounded"
                     loading="lazy"
                     width={64}
@@ -358,9 +379,9 @@ export function SettingsContent() {
                       disabled={uploading}
                     />
                   </label>
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
+                  <Button
+                    variant="outline"
+                    size="sm"
                     onClick={handleLogoDelete}
                     className="text-red-600 hover:text-red-700"
                   >
@@ -493,9 +514,9 @@ export function SettingsContent() {
             <Separator />
 
             <div className="flex gap-2">
-              <Button 
-                onClick={handleResetDatabase} 
-                variant="destructive" 
+              <Button
+                onClick={handleResetDatabase}
+                variant="destructive"
                 className="flex-1"
               >
                 <Trash2 className="h-4 w-4 mr-2" />
@@ -506,6 +527,23 @@ export function SettingsContent() {
         </Card>
 
       </div>
+      <ConfirmDialog
+        isOpen={isLogoDeleteDialogOpen}
+        onOpenChange={setIsLogoDeleteDialogOpen}
+        title="Supprimer le logo"
+        description="Êtes-vous sûr de vouloir supprimer le logo de l'entreprise ? Cette action est irréversible."
+        onConfirm={handleConfirmLogoDelete}
+        isLoading={isDeletingLogo}
+      />
+
+      <ConfirmDialog
+        isOpen={isResetDialogOpen}
+        onOpenChange={setIsResetDialogOpen}
+        title="Réinitialiser la base de données"
+        description="ATTENTION : Cette action supprimera DÉFINITIVEMENT toutes vos données (ventes, charges, clients, articles). Cette action est irréversible. Voulez-vous continuer ?"
+        onConfirm={handleConfirmResetDatabase}
+        isLoading={isReseting}
+      />
     </div>
   )
 }
