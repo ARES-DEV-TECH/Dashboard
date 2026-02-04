@@ -590,7 +590,11 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error('Error fetching dashboard evolution:', error)
     return NextResponse.json(
-      { error: 'Erreur lors de la récupération des données d\'évolution' },
+      {
+        error: 'Erreur lors de la récupération des données d\'évolution',
+        message: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined
+      },
       { status: 500 }
     )
   }
