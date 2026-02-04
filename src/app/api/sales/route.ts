@@ -143,14 +143,18 @@ export async function POST(request: NextRequest) {
     const quantity = useItems ? items.reduce((sum, i) => sum + (i.quantity || 0), 0) : (validatedData.quantity || 1)
     const unitPriceHt = useItems ? (amounts.caHt / Math.max(1, quantity)) : (validatedData.unitPriceHt || 0)
 
+    // Extract items and options to avoid conflicts with prisma data mapping
+    const { items: _items, options: _options, ...restData } = validatedData
+
     const sale = await prisma.sale.create({
       data: {
-        ...validatedData,
+        ...restData,
         ...amounts,
         serviceName,
         quantity,
         unitPriceHt,
         items: useItems ? JSON.stringify(items) : null,
+        options: validatedData.options || null,
         saleDate: new Date(validatedData.saleDate),
         year: new Date(validatedData.saleDate).getFullYear(),
         invoiceNo,

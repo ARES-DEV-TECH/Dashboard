@@ -29,7 +29,7 @@ test.describe('Flux Business Complet', () => {
     await page.getByRole('button', { name: 'Créer' }).click()
 
     // Attendre le toast ou la fermeture du dialog
-    await expect(page.getByText('Client créé')).toBeVisible()
+    await expect(page.getByText(/Client créé/i)).toBeVisible()
 
     // 2. Créer Article
     console.log('Création de l\'article...')
@@ -43,7 +43,7 @@ test.describe('Flux Business Complet', () => {
     await page.locator('#priceHt').fill('1000')
     await page.getByRole('button', { name: 'Créer' }).click()
 
-    await expect(page.getByText('Article créé')).toBeVisible()
+    await expect(page.getByText(/Article créé/i)).toBeVisible()
 
     // 3. Créer Vente
     console.log('Création de la vente...')
@@ -67,7 +67,7 @@ test.describe('Flux Business Complet', () => {
     await expect(page.locator('#price-0')).toHaveValue('1000')
 
     await page.getByRole('button', { name: 'Créer' }).click()
-    await expect(page.getByText('Vente enregistrée')).toBeVisible()
+    await expect(page.getByText(/Vente enregistrée/i)).toBeVisible()
 
     // Attendre que le dialog soit fermé pour être sûr que la table visible est la bonne
     // ou cibler spécifiquement la table de données

@@ -45,7 +45,7 @@ export async function PUT(
     const validatedData = updateSaleSchema.parse(bodyForValidation)
 
     // Don't include invoiceNo in update data: we update by invoiceNo (URL), changing it would cause unique constraint errors
-    const { invoiceNo: _ignored, ...restValidated } = validatedData
+    const { invoiceNo: _ignored, items: _items, options: _opts, ...restValidated } = validatedData
     const updateData = {
       ...restValidated,
       saleDate: new Date(validatedData.saleDate),
