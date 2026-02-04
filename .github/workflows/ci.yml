@@ -68,8 +68,14 @@ jobs:
         env:
           DATABASE_URL: postgresql://postgres:password@localhost:5432/dashboard
 
+      - name: Seed database
+        run: npm run db:seed
+        env:
+          DATABASE_URL: postgresql://postgres:password@localhost:5432/dashboard
+
       - name: Run E2E tests
         run: npm run test:e2e
         env:
           DATABASE_URL: postgresql://postgres:password@localhost:5432/dashboard
+          JWT_SECRET: ${{ secrets.JWT_SECRET || 'ci-secret-for-build' }}
           CI: true
